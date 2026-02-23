@@ -1,0 +1,38 @@
+{
+  "name": "async-report-engine",
+  "version": "1.0.0",
+  "description": "A distributed, event-driven system designed to handle long-running report generation tasks asynchronously using a job queue architecture.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "ts-node-dev src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/poojithpagadekal/async-report-engine.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/poojithpagadekal/async-report-engine/issues"
+  },
+  "homepage": "https://github.com/poojithpagadekal/async-report-engine#readme",
+  "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "bullmq": "^5.70.1",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "ioredis": "^5.9.3",
+    "pg": "^8.18.0",
+    "prisma": "^6.19.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.3.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.3"
+  }
+}
