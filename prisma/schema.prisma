@@ -15,6 +15,9 @@ datasource db {
 
 model Report {
   id        Int      @id @default(autoincrement())
-  status    String
+  title     String
+  status    String @default("PENDING")
+  result    String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
