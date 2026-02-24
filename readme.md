@@ -1,6 +1,6 @@
 # Async Report Processing System
 
-A distributed, event-driven system designed to handle long-running report generation tasks asynchronously using a job queue architecture.
+A distributed, event-driven backend system designed to handle long-running report generation tasks asynchronously using a job queue architecture.
 
 ---
 
@@ -16,33 +16,60 @@ Instead of blocking the API while a report is generated, tasks are queued and pr
 
 - Node.js
 - Express
-- React
 - Redis
 - BullMQ
 - PostgreSQL
+- Prisma
 - Docker
 - Docker Compose
 
 ---
 
+## Project Status
+
+Event loop performance experiments completed  
+Queue-based job processing (in progress)  
+Worker service separation (planned)
+
+This repository documents the architectural evolution from synchronous request handling to a distributed, queue-based processing model.
+---
+
 ## Architecture
 
-1. The client submits a report generation request.
-2. The API server validates the request and enqueues a job using BullMQ.
-3. Redis acts as the message broker for the job queue.
+1. Client submits a report generation request.
+2. API server validates and enqueues a job using BullMQ.
+3. Redis acts as the message broker.
 4. A separate worker service processes the job asynchronously.
-5. The processed result is stored in the database.
-6. The client retrieves job status and results via polling.
+5. Processed results are stored in PostgreSQL.
+6. Client polls the API for job status and results.
 
-This architecture mirrors real-world distributed backend systems used in production environments.
-
+This architecture is being implemented incrementally to mirror production-grade distributed backend systems.
 ---
 
 ## Key Concepts Demonstrated
 
 - Asynchronous job processing
+- Event loop behavior analysis
 - Queue-based system design
 - Separation of API and worker services
 - Background task execution
-- Containerized services using Docker
-- Inter-service communication
+- Containerized microservice-style setup
+- Performance benchmarking under load
+
+---
+
+## Performance Testing
+
+Load testing was conducted using Artillery.
+
+Detailed results and experiment analysis:
+- [Performance Baseline](docs/performance-baseline.md)
+
+The experiments demonstrate the difference between:
+
+- Async I/O workloads (non-blocking)
+- CPU-bound blocking workloads (event loop collapse)
+
+These findings motivated the queue-based architecture.
+
+---
