@@ -1,0 +1,17 @@
+config:
+  target: "http://localhost:5000"
+
+  phases:
+    - name: "Light Load"
+      duration: 60
+      arrivalRate: 2
+
+    - name: "Heavy Load"
+      duration: 60
+      arrivalRate: 50
+
+scenarios:
+  - name: "Generate Report Sync"
+    flow:
+      - post:
+          url: "/api/generate-report"
