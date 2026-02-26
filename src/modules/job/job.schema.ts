@@ -1,0 +1,20 @@
+import { z } from "zod";
+import { JobType, JobStatus } from "@prisma/client";
+
+export const CreateJobSchema = z.object({
+  body: z.object({
+    userId: z.string().uuid("Invalid user id format"),
+    title: z.string().min(5, "Title should be more descriptive"),
+    type: z.nativeEnum(JobType),
+  }),
+});
+
+export const UpdateJobSchema = z.object({
+  params: z.object({
+    jobId: z.string().uuid("Invalid Job Id format"),
+  }),
+  body: z.object({
+    status: z.nativeEnum(JobStatus),
+    progress: z.number().min(0).max(100).optional(),
+  }),
+});

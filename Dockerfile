@@ -9,6 +9,6 @@ RUN npm install
 
 COPY . .
 
-RUN npm run build
+RUN npm install && npx prisma generate && npm run build
 
-CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && node dist/server.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
