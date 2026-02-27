@@ -1,6 +1,11 @@
 # Async Report Processing System
 
-A distributed, event-driven backend system designed to handle long-running report generation tasks asynchronously using a job queue architecture.
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
+![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
+![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
+
+Distributed event-driven backend system for asynchronous processing of long-running report generation tasks using a job queue architecture.
 
 ---
 
