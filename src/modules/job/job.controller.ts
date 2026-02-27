@@ -1,11 +1,15 @@
 import { Request, Response } from "express";
 import { createJob, getAllJobs, updateJobStatus } from "./job.service";
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
+import { jobQueue } from "./job.queue";
 
 export const createJobHandler = async (req: Request, res: Response) => {
   try {
     const { userId, title, type } = req.body;
     const job = await createJob(userId, title, type);
+    await jobQueue.add("processJob", {
+      jobId: job.id,
+    });
     return res.status(201).json({
       job,
     });
