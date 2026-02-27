@@ -8,68 +8,79 @@ A distributed, event-driven backend system designed to handle long-running repor
 
 This project demonstrates how to design and implement a scalable backend system capable of processing resource-intensive tasks outside the main request-response cycle.
 
-Instead of blocking the API while a report is generated, tasks are queued and processed by dedicated worker services. This approach improves responsiveness, scalability, and system reliability.
+Instead of blocking the API while a report is generated, tasks are queued and processed by dedicated worker services.
+
+The system evolved from a synchronous, CPU-bound architecture to a distributed, queue-based processing model validated through performance benchmarking.
 
 ---
 
 ## Tech Stack
 
-- Node.js
-- Express
-- Redis
-- BullMQ
-- PostgreSQL
-- Prisma
-- Docker
-- Docker Compose
+- Node.js & Express – API framework for request ingestion  
+- Redis & BullMQ – Message broker and job queue management  
+- PostgreSQL & Prisma – Relational database and ORM  
+- Docker & Docker Compose – Service orchestration  
+- Artillery – Load testing and benchmarking  
 
----
-
-## Project Status
-
-Event loop performance experiments completed  
-Queue-based job processing (in progress)  
-Worker service separation (planned)
-
-This repository documents the architectural evolution from synchronous request handling to a distributed, queue-based processing model.
 ---
 
 ## Architecture
 
-1. Client submits a report generation request.
-2. API server validates and enqueues a job using BullMQ.
-3. Redis acts as the message broker.
-4. A separate worker service processes the job asynchronously.
-5. Processed results are stored in PostgreSQL.
-6. Client polls the API for job status and results.
+1. Client submits a report generation request  
+2. API validates input and enqueues a job using BullMQ  
+3. Redis manages the queue state  
+4. A dedicated worker service processes jobs asynchronously  
+5. Results and status updates are stored in PostgreSQL  
+6. Client polls the API for job status and final results  
 
-This architecture is being implemented incrementally to mirror production-grade distributed backend systems.
+This architecture mirrors production-grade distributed backend systems.
+
+---
+
+## Performance Benchmarking
+
+Load testing was conducted at 50 requests/sec for 60 seconds.
+
+| Metric | Synchronous (Blocking) | Distributed (BullMQ) |
+|--------|------------------------|----------------------|
+| Success Rate | 0.01% | 100% |
+| Failures (ETIMEDOUT) | 3,117 | 0 |
+| Mean API Latency | ~5,677 ms | ~104.8 ms |
+| Median API Latency | Timed Out | ~29.1 ms |
+| System Stability | Collapsed | Stable |
+
+---
+
+### Key Findings
+
+- Handled 6,000 total requests with 0% failure rate under sustained load  
+- API remained responsive during heavy background processing  
+- Over 3,000 jobs were ingested in under 60 seconds without server collapse  
+- Backpressure was absorbed by Redis when worker throughput was exceeded  
+- Request lifecycle was successfully decoupled from heavy computation  
+
+Detailed benchmark analysis is available in:
+
+[View Detailed Performance Breakdown](docs/performance-baseline.md)
+
 ---
 
 ## Key Concepts Demonstrated
 
-- Asynchronous job processing
-- Event loop behavior analysis
-- Queue-based system design
-- Separation of API and worker services
-- Background task execution
-- Containerized microservice-style setup
-- Performance benchmarking under load
+- Asynchronous job processing  
+- Event loop behavior analysis  
+- Backpressure handling via message queues  
+- Separation of API and worker services  
+- Containerized distributed architecture  
+- Performance benchmarking under load  
 
 ---
 
-## Performance Testing
+## Running Locally
 
-Load testing was conducted using Artillery.
+Ensure Docker and Docker Compose are installed.
 
-Detailed results and experiment analysis:
-- [Performance Baseline](docs/performance-baseline.md)
-
-The experiments demonstrate the difference between:
-
-- Async I/O workloads (non-blocking)
-- CPU-bound blocking workloads (event loop collapse)
-
-These findings motivated the queue-based architecture.
-
----
+```bash
+git clone https://github.com/poojithpagadekal/async-report-engine.git
+cd async-report-engine
+docker-compose up --build
