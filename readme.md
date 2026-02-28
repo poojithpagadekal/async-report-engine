@@ -27,6 +27,7 @@ The focus of this project is architectural design, event loop isolation, and sys
 - PostgreSQL & Prisma – Relational database and ORM  
 - Docker & Docker Compose – Containerized services  
 - Artillery – Load testing and benchmarking  
+- BullBoard – Queue observability dashboard  
 
 ---
 
@@ -43,24 +44,42 @@ The system follows common distributed system patterns for decoupled background p
 
 ---
 
-## Performance Benchmarking
+## Performance & Scaling Analysis
 
-Load testing was conducted at sustained request rates (50–75 requests/sec) for 60 seconds to compare:
+The system was benchmarked under sustained load (50–75 requests/sec) across three configurations:
 
-- A synchronous, event-loop-blocking implementation  
-- A distributed BullMQ-based worker model  
+### 1. Synchronous Baseline
 
-### Observations
+- CPU-bound logic executed on the main thread  
+- Event loop blocked  
+- Success rate: <0.1%  
+- System became unresponsive  
 
-- The synchronous model collapsed due to event loop blocking.
-- The distributed model kept the API responsive under load.
-- Under extreme traffic, the system reached infrastructure saturation (database/network limits) rather than application-level failure.
-- Successfully ingested jobs were processed to completion by workers.
-- Redis buffered incoming jobs when workers were at capacity (backpressure).
+**Failure mode:** Application-level design flaw
 
-Detailed metrics, latency distributions, and saturation analysis are available in:
+---
 
-[View Detailed Performance Breakdown](docs/performance-baseline.md)
+### 2. Distributed – Single Worker
+
+- Tasks processed by one worker (concurrency: 4)  
+- API remained responsive  
+- Success rate: ~64%  
+- Redis buffered excess load (backpressure)  
+
+**Failure mode:** Infrastructure saturation under extreme load
+
+---
+
+### 3. Distributed – Three Workers (12 concurrent jobs)
+
+- Workers scaled to three containers  
+- Increased compute parallelism  
+- Observed success rate decreased to ~13%  
+- Primary bottleneck shifted to PostgreSQL connection contention and I/O limits  
+
+Increasing compute throughput exposed persistence-layer limits.
+
+[Detailed benchmark data](docs/performance-baseline.md)
 
 ---
 
@@ -84,3 +103,15 @@ Ensure Docker and Docker Compose are installed.
 git clone https://github.com/poojithpagadekal/async-report-engine.git
 cd async-report-engine
 docker-compose up --build
+```
+---
+##  Monitoring & Observability
+
+### BullBoard Dashboard
+
+After starting the Docker containers, you can monitor queue state, active workers, and job progress in real time using the BullBoard UI.
+
+**Local Access:**  
+http://localhost:5000/admin/queues
+
+> The dashboard is only accessible while the Docker containers are running locally.
