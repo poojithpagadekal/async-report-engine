@@ -13,12 +13,11 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/reports_db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-    # Run migrations then start the API
     command: sh -c "npx prisma migrate deploy && node dist/server.js"
 
   worker:
     build: .
-    container_name: async-worker
+    # container_name removed to allow multiple instances
     depends_on:
       - postgres
       - redis
@@ -26,8 +25,10 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/reports_db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-    # Start the worker (using the build version)
     command: node dist/workers/job.worker.js
+    # Scaling config moved inside the worker service
+    deploy:
+      replicas: ${WORKER_REPLICAS:-1}
 
   postgres:
     image: postgres:15
