@@ -23,6 +23,8 @@
   },
   "homepage": "https://github.com/poojithpagadekal/async-report-engine#readme",
   "dependencies": {
+    "@bull-board/api": "^6.20.3",
+    "@bull-board/express": "^6.20.3",
     "@prisma/client": "^6.19.2",
     "bullmq": "^5.70.1",
     "dotenv": "^17.3.1",
