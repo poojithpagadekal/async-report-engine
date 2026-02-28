@@ -1,33 +1,20 @@
 import { Worker } from "bullmq";
 import { redisConnection } from "../config/redis";
-import { updateJobStatus } from "../modules/job/job.service";
+import path from "path";
 
-const worker = new Worker(
-  "jobQueue",
-  async (job) => {
-    const { jobId } = job.data;
-    try {
-      console.log(` ${jobId}`);
+const processorPath = path.join(__dirname, "job.processor.js");
 
-      //Mark as processing
-      await updateJobStatus(jobId, "PROCESSING");
+const worker = new Worker("jobQueue", processorPath, {
+  connection: redisConnection,
+  concurrency: 4,
+});
 
-      //Simulate long task
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+worker.on("completed", (job) => {
+  console.log(`Job ${job.id} has completed`);
+});
 
-      //Mark as completed
-      await updateJobStatus(jobId, "COMPLETED");
-
-      console.log("Completed Job", jobId);
-    } catch (error) {
-      console.error(`Job ${jobId} failed `, error);
-      await updateJobStatus(jobId, "FAILED");
-      throw error;
-    }
-  },
-  {
-    connection: redisConnection,
-  },
-);
+worker.on("failed", (job, err) => {
+  console.log(`Job ${job?.id} failed with ${err.message}`);
+});
 
 console.log("Worker started");
