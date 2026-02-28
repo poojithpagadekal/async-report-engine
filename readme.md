@@ -5,66 +5,60 @@
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
 
-Distributed event-driven backend system for asynchronous processing of long-running report generation tasks using a job queue architecture.
+A backend system that demonstrates how to offload CPU-intensive workloads from the main request-response cycle using a distributed job queue architecture.
 
 ---
 
 ## Overview
 
-This project demonstrates how to design and implement a scalable backend system capable of processing resource-intensive tasks outside the main request-response cycle.
+This project explores how to design a Node.js backend that remains responsive under CPU-heavy workloads by separating API request handling from background task execution.
 
-Instead of blocking the API while a report is generated, tasks are queued and processed by dedicated worker services.
+Instead of executing a 3-second CPU-bound task inside the HTTP lifecycle, incoming requests are enqueued and processed asynchronously by dedicated worker processes. This ensures the API layer remains responsive even when workers are fully utilized.
 
-The system evolved from a synchronous, CPU-bound architecture to a distributed, queue-based processing model validated through performance benchmarking.
+The focus of this project is architectural design, event loop isolation, and system behavior under sustained load.
 
 ---
 
 ## Tech Stack
 
-- Node.js & Express – API framework for request ingestion  
+- Node.js & Express – API framework  
+- TypeScript – Type safety and maintainability  
 - Redis & BullMQ – Message broker and job queue management  
 - PostgreSQL & Prisma – Relational database and ORM  
-- Docker & Docker Compose – Service orchestration  
+- Docker & Docker Compose – Containerized services  
 - Artillery – Load testing and benchmarking  
 
 ---
 
 ## Architecture
 
-1. Client submits a report generation request  
+1. Client submits a task request  
 2. API validates input and enqueues a job using BullMQ  
-3. Redis manages the queue state  
-4. A dedicated worker service processes jobs asynchronously  
-5. Results and status updates are stored in PostgreSQL  
-6. Client polls the API for job status and final results  
+3. Redis stores and manages queue state  
+4. Dedicated worker processes consume jobs asynchronously  
+5. Workers update PostgreSQL as job states transition (`PROCESSING` → `COMPLETED`)  
+6. Clients poll the API for job status and results  
 
-This architecture mirrors production-grade distributed backend systems.
+The system follows common distributed system patterns for decoupled background processing and workload isolation.
 
 ---
 
 ## Performance Benchmarking
 
-Load testing was conducted at 50 requests/sec for 60 seconds.
+Load testing was conducted at sustained request rates (50–75 requests/sec) for 60 seconds to compare:
 
-| Metric | Synchronous (Blocking) | Distributed (BullMQ) |
-|--------|------------------------|----------------------|
-| Success Rate | 0.01% | 100% |
-| Failures (ETIMEDOUT) | 3,117 | 0 |
-| Mean API Latency | ~5,677 ms | ~104.8 ms |
-| Median API Latency | Timed Out | ~29.1 ms |
-| System Stability | Collapsed | Stable |
+- A synchronous, event-loop-blocking implementation  
+- A distributed BullMQ-based worker model  
 
----
+### Observations
 
-### Key Findings
+- The synchronous model collapsed due to event loop blocking.
+- The distributed model kept the API responsive under load.
+- Under extreme traffic, the system reached infrastructure saturation (database/network limits) rather than application-level failure.
+- Successfully ingested jobs were processed to completion by workers.
+- Redis buffered incoming jobs when workers were at capacity (backpressure).
 
-- Handled 6,000 total requests with 0% failure rate under sustained load  
-- API remained responsive during heavy background processing  
-- Over 3,000 jobs were ingested in under 60 seconds without server collapse  
-- Backpressure was absorbed by Redis when worker throughput was exceeded  
-- Request lifecycle was successfully decoupled from heavy computation  
-
-Detailed benchmark analysis is available in:
+Detailed metrics, latency distributions, and saturation analysis are available in:
 
 [View Detailed Performance Breakdown](docs/performance-baseline.md)
 
@@ -73,11 +67,12 @@ Detailed benchmark analysis is available in:
 ## Key Concepts Demonstrated
 
 - Asynchronous job processing  
-- Event loop behavior analysis  
-- Backpressure handling via message queues  
+- Event loop isolation in Node.js  
+- Sandboxed worker processes  
+- Backpressure handling via Redis  
 - Separation of API and worker services  
-- Containerized distributed architecture  
-- Performance benchmarking under load  
+- Graceful degradation under load  
+- Performance benchmarking and bottleneck analysis  
 
 ---
 
