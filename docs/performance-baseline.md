@@ -1,139 +1,91 @@
 # Performance & Scalability Analysis
 
-This document compares a synchronous CPU-bound implementation against a distributed BullMQ-based worker architecture under sustained load testing using Artillery.
+This document summarizes load testing results across three architectural stages:
+1. Synchronous (blocking)
+2. Distributed (1 worker)
+3. Distributed (3 workers)
+
+Tests were executed using Artillery under sustained load (~74 req/sec for 60s) on a single host.
 
 ---
 
 ## Test Configuration
 
-- Duration: 60 seconds
-- Peak Request Rate: ~74 requests/sec
-- Workload: Simulated 3-second CPU-bound computation
-- Worker Concurrency: 4
-- Environment: Dockerized services (API, Redis, PostgreSQL, Worker)
-
-The test intentionally pushed the system to saturation to observe real-world behavior under stress.
+- Workload: Simulated 3-second CPU-bound task
+- Environment: Dockerized API, Redis, PostgreSQL, Worker(s)
+- Host: Single machine (multiple CPU cores)
 
 ---
 
-## 1. Baseline: Synchronous (Blocking) Architecture
+## Phase 1 — Synchronous (Blocking)
 
-In the baseline model, the 3-second CPU-bound task executed directly inside the HTTP request lifecycle.
-
-### Observed Behavior (50 req/sec)
+CPU task executed inside the HTTP lifecycle.
 
 | Metric | Result |
 |--------|--------|
-| Success Rate | ~0.01% |
+| Success Rate | < 0.1% |
 | Failures | ~3,117 ETIMEDOUT |
 | Mean Latency | ~5,677 ms |
-| Server State | Event Loop Blocked |
-| System Stability | Collapsed |
+| System State | Collapsed |
 
-### Analysis
-
-- The Node.js event loop was blocked by CPU-heavy logic.
-- Incoming requests could not be processed.
-- Even health checks became unresponsive.
-- The system failed due to application-level design limitations.
-
-Failure mode: **Event Loop Blocking**
+**Bottleneck:** Event Loop Blocking  
+The server became unresponsive due to CPU starvation.
 
 ---
 
-## 2. Distributed Worker Architecture (BullMQ + Sandboxed Processors)
+## Phase 2 — Distributed (1 Worker)
 
-The system was refactored to decouple request ingestion from heavy computation:
+Jobs offloaded to one worker (concurrency: 4).
 
-- API enqueues jobs into Redis.
-- Workers process CPU-heavy tasks in isolated child processes.
-- API responds immediately after job submission.
-
----
-
-## 3. High-Load Results (Worker Version)
-
-Based on the provided Artillery summary report :contentReference[oaicite:1]{index=1}:
-
-| Metric | Distributed (Workers) |
-|--------|-----------------------|
+| Metric | Result |
+|--------|--------|
 | Total Requests | 4,425 |
-| Successful Responses | 2,850 |
-| Failed Requests (ETIMEDOUT) | 1,575 |
 | Success Rate | ~64.4% |
+| Successful Responses | 2,850 |
+| Failed Requests | 1,575 ETIMEDOUT |
 | Mean Latency | ~4,933 ms |
-| Median Latency | ~3,984 ms |
-| p95 Latency | ~9,801 ms |
-| Request Rate | ~74 req/sec |
+
+**Bottleneck:** Worker Compute Throughput  
+The API remained responsive. Redis absorbed burst traffic (backpressure). Failures occurred when ingestion exceeded worker processing capacity.
 
 ---
 
-## 4. Comparative Summary
+## Phase 3 — Horizontal Scaling (3 Workers)
 
-| Metric | Synchronous (Blocking) | Distributed (Workers) |
-|--------|------------------------|------------------------|
-| Failure Mode | Event Loop Blocking | Infrastructure Saturation |
-| API Responsiveness | Unresponsive | Responsive under load |
-| Request Handling | Collapsed | Degraded gradually |
-| Data Integrity | Requests lost | All successfully ingested jobs processed |
-| Scalability Model | Vertical only | Horizontally scalable |
+Workers scaled to 3 replicas (total concurrency: 12), all on the same host.
 
----
+| Metric | Result |
+|--------|--------|
+| Total Requests | 3,371 |
+| Success Rate | ~13.5% |
+| Successful Responses | 454 |
+| Failed Requests | 2,954 ETIMEDOUT |
 
-## 5. System Behavior Under Saturation
+**Bottleneck:** Database / I/O Contention  
+Scaling compute exposed infrastructure limits:
+- PostgreSQL connection contention
+- Host-level resource saturation
+- Increased ingestion timeouts
 
-At sustained ~74 req/sec:
-
-- The API remained alive and continued accepting requests.
-- Redis buffered incoming jobs (backpressure).
-- Workers processed jobs at fixed throughput (4 concurrent tasks).
-- ETIMEDOUT errors occurred due to infrastructure limits, not application deadlock.
-
-Primary bottleneck observed:
-- PostgreSQL connection pool contention
-- I/O competition between API and worker processes
-
-Importantly:
-- No worker crashes occurred.
-- No stalled jobs were observed.
-- Successfully ingested jobs were processed to completion.
-
-Failure mode: **Resource Saturation (Database / Network)**
+The API remained alive, but infrastructure capacity became the limiting factor.
 
 ---
 
-## 6. Engineering Interpretation
+## Bottleneck Evolution
 
-### What Changed
+| Phase | Primary Limitation |
+|-------|-------------------|
+| Sync | Event Loop (Software) |
+| 1 Worker | CPU Throughput |
+| 3 Workers | Database / I/O |
 
-Before:
-- CPU-heavy logic blocked the event loop.
-- Server became unreachable.
-
-After:
-- CPU-heavy logic isolated in sandboxed worker processes.
-- API thread remained responsive.
-- Bottleneck shifted from application design to infrastructure capacity.
-
-This represents a transition from a design flaw to a scaling limit.
+The architecture successfully eliminated application-level blocking.  
+Under higher concurrency, failures shifted from software design flaws to measurable infrastructure constraints.
 
 ---
 
-## 7. Scaling Strategy
+## Conclusion
 
-To improve sustained success rate under extreme load:
+The transition to a distributed worker model removed event loop starvation and enabled controlled degradation under load.
 
-- Increase PostgreSQL connection pool size
-- Add additional worker instances
-- Increase worker concurrency
-- Implement API-level rate limiting
-- Introduce queue-depth admission control
-- Add monitoring and autoscaling policies
-
----
-
-## Final Conclusion
-
-The migration from a synchronous CPU-bound model to a distributed BullMQ-based worker architecture successfully eliminated event loop blocking and enabled graceful degradation under sustained load.
-
-While extreme traffic resulted in database/network saturation, the system remained operational and continued processing queued jobs. The bottleneck shifted from application-level blocking to infrastructure capacity limits, demonstrating correct architectural separation and horizontal scalability potential.
+Horizontal scaling increased compute capacity but revealed persistence-layer limits on a single host. Further improvements require database tuning, connection pooling, and multi-node distribution.
