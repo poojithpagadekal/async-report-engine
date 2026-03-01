@@ -9,7 +9,7 @@ scenarios:
       - post:
           url: "/api/jobs"
           json:
-            userId: "60fa67b0-4036-4954-9f78-33426cbe19cd"
+            userId: "94c027b2-a44d-4962-9946-7de970e1a9b2"
             title: "Performance test report"
             type: "PDF_EXPORT"
       - get:

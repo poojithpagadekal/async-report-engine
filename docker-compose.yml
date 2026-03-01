@@ -17,7 +17,6 @@ services:
 
   worker:
     build: .
-    # container_name removed to allow multiple instances
     depends_on:
       - postgres
       - redis
@@ -26,9 +25,9 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     command: node dist/workers/job.worker.js
-    # Scaling config moved inside the worker service
     deploy:
       replicas: ${WORKER_REPLICAS:-1}
+    
 
   postgres:
     image: postgres:15

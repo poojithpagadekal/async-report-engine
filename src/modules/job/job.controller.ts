@@ -14,7 +14,7 @@ export const createJobHandler = async (req: Request, res: Response) => {
       job,
     });
   } catch (error) {
-    console.log(error);
+    req.log.error({ err: error }, "Failed to create job");
 
     if (error instanceof PrismaClientKnownRequestError) {
       if (error.code === "P2003") {
@@ -37,7 +37,7 @@ export const getJobHandler = async (req: Request, res: Response) => {
       jobs,
     });
   } catch (error) {
-    console.log(error);
+    req.log.error({ err: error }, "Failed to fetch jobs");
     return res.status(500).json({
       message: "server error (error getting jobs)",
     });
@@ -48,8 +48,9 @@ export const updateJobHandler = async (req: Request, res: Response) => {
   try {
     const jobId = req.params.jobId as string;
     if (!jobId) {
+      req.log.warn("Missing jobId in request params");
       return res.status(400).json({
-        message: "job id is required",
+        message: "Job Id is required",
       });
     }
     const { status, progress } = req.body;
@@ -60,7 +61,7 @@ export const updateJobHandler = async (req: Request, res: Response) => {
       updatedJob,
     });
   } catch (error) {
-    console.log(error);
+    req.log.error({ err: error }, "Failed to update job");
 
     if (error instanceof Error && error.message.includes("not found")) {
       return res.status(404).json({

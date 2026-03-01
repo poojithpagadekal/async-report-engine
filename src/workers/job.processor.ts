@@ -1,33 +1,57 @@
 import { updateJobStatus } from "../modules/job/job.service";
 import { Job } from "bullmq";
+import { logger } from "../utils/logger";
+
+function performHeavyComputation(iterations: number) {
+  let result = 0;
+  for (let i = 0; i < iterations; i++) {
+    result += Math.sqrt(i * Math.random());
+  }
+  return result;
+}
 
 export default async function (job: Job) {
   const { jobId } = job.data;
+  const startTimestamp = Date.now();
+
+  const jobLog = logger.child({
+    jobId,
+    jobName: job.name,
+    attempt: job.attemptsMade + 1,
+  });
 
   try {
-    await updateJobStatus(jobId, "PROCESSING");
+    jobLog.info("Job execution started: Work-based CPU load");
 
+    await updateJobStatus(jobId, "PROCESSING");
     await job.updateProgress(10);
 
-    const startTime = Date.now();
-    while (Date.now() - startTime < 1000) {}
+    performHeavyComputation(20_000_000);
+    await job.updateProgress(30);
 
-    await job.updateProgress(40);
+    performHeavyComputation(60_000_000);
+    await job.updateProgress(80);
 
-    const midTime = Date.now();
-    while (Date.now() - midTime < 1000) {}
-
-    await job.updateProgress(70);
-
-    const endTime = Date.now();
-    while (Date.now() - endTime < 1000) {}
-
+    performHeavyComputation(20_000_000);
     await job.updateProgress(100);
 
     await updateJobStatus(jobId, "COMPLETED");
 
-    return { status: "success" };
+    const totalDuration = Date.now() - startTimestamp;
+    jobLog.info(
+      { status: "COMPLETED", durationMs: totalDuration },
+      "Job successfully finished",
+    );
+
+    return { status: "success", duration: totalDuration };
   } catch (error) {
+    jobLog.error(
+      {
+        err: error,
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+      "Job execution failed",
+    );
     await updateJobStatus(jobId, "FAILED");
     throw error;
   }

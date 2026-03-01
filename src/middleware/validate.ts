@@ -20,6 +20,5 @@ export const validate =
     if (result.data.body) {
       req.body = result.data.body;
     }
-
     next();
   };

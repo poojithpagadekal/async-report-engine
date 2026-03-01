@@ -10,7 +10,7 @@ export const createUserHandler = async (req: Request, res: Response) => {
       user,
     });
   } catch (error) {
-    console.log(error);
+    req.log.error({ err: error }, "Failed to create user");
 
     if (error instanceof PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
@@ -25,11 +25,12 @@ export const createUserHandler = async (req: Request, res: Response) => {
   }
 };
 
-export const getUsersHandler = async (_: Request, res: Response) => {
+export const getUsersHandler = async (req: Request, res: Response) => {
   try {
     const users = await getUsers();
     return res.status(200).json({ users });
   } catch (error) {
+    req.log.error({ err: error }, "Failed to fetch users");
     return res.status(500).json({
       message: "server error (error getting users)",
     });
