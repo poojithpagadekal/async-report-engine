@@ -1,139 +1,83 @@
 # Performance & Scalability Analysis
 
-This document compares a synchronous CPU-bound implementation against a distributed BullMQ-based worker architecture under sustained load testing using Artillery.
+This document summarizes load testing results across three architectural stages, transitioning from a monolithic synchronous model to a distributed, horizontally scaled worker architecture.
+
+Tests were executed using Artillery under sustained load (~100 req/sec) on a single host.
 
 ---
 
 ## Test Configuration
 
-- Duration: 60 seconds
-- Peak Request Rate: ~74 requests/sec
-- Workload: Simulated 3-second CPU-bound computation
-- Worker Concurrency: 4
-- Environment: Dockerized services (API, Redis, PostgreSQL, Worker)
-
-The test intentionally pushed the system to saturation to observe real-world behavior under stress.
+- **Workload**: 100 Million deterministic square-root operations per job (Work-based CPU saturation).
+- **Environment**: Dockerized API, Redis, PostgreSQL, Worker(s).
+- **Host**: Single machine (multi-core).
 
 ---
 
-## 1. Baseline: Synchronous (Blocking) Architecture
+## Phase 1 — Synchronous (Blocking)
 
-In the baseline model, the 3-second CPU-bound task executed directly inside the HTTP request lifecycle.
-
-### Observed Behavior (50 req/sec)
+CPU task executed directly inside the HTTP request-response lifecycle.
 
 | Metric | Result |
-|--------|--------|
-| Success Rate | ~0.01% |
-| Failures | ~3,117 ETIMEDOUT |
-| Mean Latency | ~5,677 ms |
-| Server State | Event Loop Blocked |
-| System Stability | Collapsed |
+| :--- | :--- |
+| **Total Requests** | 3,120 |
+| **Success Rate** | ~1.1% (35 successful) |
+| **Failures** | 3,085 ETIMEDOUT |
+| **Mean Latency** | 5,583.5 ms |
+| **System State** | Collapsed |
 
-### Analysis
-
-- The Node.js event loop was blocked by CPU-heavy logic.
-- Incoming requests could not be processed.
-- Even health checks became unresponsive.
-- The system failed due to application-level design limitations.
-
-Failure mode: **Event Loop Blocking**
+**Bottleneck: Event Loop Blocking** The Node.js main thread was 100% occupied by math iterations. The server became unresponsive and could not acknowledge new TCP handshakes, causing massive timeouts.
 
 ---
 
-## 2. Distributed Worker Architecture (BullMQ + Sandboxed Processors)
+## Phase 2 — Distributed (1 Worker)
 
-The system was refactored to decouple request ingestion from heavy computation:
+Jobs offloaded to a single worker process (concurrency: 4).
 
-- API enqueues jobs into Redis.
-- Workers process CPU-heavy tasks in isolated child processes.
-- API responds immediately after job submission.
+| Metric | Result |
+| :--- | :--- |
+| **Total Requests** | 3,000 |
+| **Success Rate** | ~91.4% |
+| **Failures** | 258 ETIMEDOUT |
+| **Mean Latency** | 1,545 ms |
+| **p99 Latency** | 9,801.2 ms |
 
----
-
-## 3. High-Load Results (Worker Version)
-
-Based on the provided Artillery summary report :contentReference[oaicite:1]{index=1}:
-
-| Metric | Distributed (Workers) |
-|--------|-----------------------|
-| Total Requests | 4,425 |
-| Successful Responses | 2,850 |
-| Failed Requests (ETIMEDOUT) | 1,575 |
-| Success Rate | ~64.4% |
-| Mean Latency | ~4,933 ms |
-| Median Latency | ~3,984 ms |
-| p95 Latency | ~9,801 ms |
-| Request Rate | ~74 req/sec |
+**Bottleneck: Worker Compute Throughput** The API remained responsive with low initial latency (3.4 ms). However, as the single worker reached its compute limit, backpressure built up in the Redis queue, leading to increased latency and terminal timeouts as ingestion outpaced processing capacity.
 
 ---
 
-## 4. Comparative Summary
+## Phase 3 — Horizontal Scaling (3 Workers)
 
-| Metric | Synchronous (Blocking) | Distributed (Workers) |
-|--------|------------------------|------------------------|
-| Failure Mode | Event Loop Blocking | Infrastructure Saturation |
-| API Responsiveness | Unresponsive | Responsive under load |
-| Request Handling | Collapsed | Degraded gradually |
-| Data Integrity | Requests lost | All successfully ingested jobs processed |
-| Scalability Model | Vertical only | Horizontally scalable |
+Workers scaled to 3 replicas (logical concurrency: 12 jobs configured) on the same host.
 
----
+| Metric | Result |
+| :--- | :--- |
+| **Total Requests** | 3,000 |
+| **Success Rate** | ~9.7% |
+| **Failures** | 2,710 ETIMEDOUT |
+| **Mean Latency** | 5,745 ms |
 
-## 5. System Behavior Under Saturation
-
-At sustained ~74 req/sec:
-
-- The API remained alive and continued accepting requests.
-- Redis buffered incoming jobs (backpressure).
-- Workers processed jobs at fixed throughput (4 concurrent tasks).
-- ETIMEDOUT errors occurred due to infrastructure limits, not application deadlock.
-
-Primary bottleneck observed:
-- PostgreSQL connection pool contention
-- I/O competition between API and worker processes
-
-Importantly:
-- No worker crashes occurred.
-- No stalled jobs were observed.
-- Successfully ingested jobs were processed to completion.
-
-Failure mode: **Resource Saturation (Database / Network)**
+**Bottleneck: Database & I/O Contention** Scaling compute exposed infrastructure limits. Parallel workers competing for the same physical CPU resources and PostgreSQL connection pool caused a "Thundering Herd" effect. Resource contention at the persistence layer became the primary limiting factor.
 
 ---
 
-## 6. Engineering Interpretation
+## Bottleneck Evolution
 
-### What Changed
+| Phase | Primary Limitation | System Maturity |
+| :--- | :--- | :--- |
+| **Sync** | Event Loop (Software Design) | Fragile |
+| **1 Worker** | CPU Throughput (Compute) | Resilient |
+| **3 Workers** | Database / I/O (Infrastructure) | Scalable |
 
-Before:
-- CPU-heavy logic blocked the event loop.
-- Server became unreachable.
-
-After:
-- CPU-heavy logic isolated in sandboxed worker processes.
-- API thread remained responsive.
-- Bottleneck shifted from application design to infrastructure capacity.
-
-This represents a transition from a design flaw to a scaling limit.
+The architecture successfully eliminated application-level blocking. Under higher concurrency, failures shifted from software design flaws to measurable infrastructure constraints.
 
 ---
 
-## 7. Scaling Strategy
+## Conclusion
 
-To improve sustained success rate under extreme load:
+The transition to a distributed worker model removed event loop starvation and enabled controlled degradation under load. By moving from time-based waiting to a deterministic 100M iteration workload, the benchmarks reflect real-world computational stress.
 
-- Increase PostgreSQL connection pool size
-- Add additional worker instances
-- Increase worker concurrency
-- Implement API-level rate limiting
-- Introduce queue-depth admission control
-- Add monitoring and autoscaling policies
-
----
-
-## Final Conclusion
-
-The migration from a synchronous CPU-bound model to a distributed BullMQ-based worker architecture successfully eliminated event loop blocking and enabled graceful degradation under sustained load.
-
-While extreme traffic resulted in database/network saturation, the system remained operational and continued processing queued jobs. The bottleneck shifted from application-level blocking to infrastructure capacity limits, demonstrating correct architectural separation and horizontal scalability potential.
+**Future Hardening Required**:
+1. **API Rate Limiting**: To prevent infrastructure saturation during bursts.
+2. **Connection Pooling**: Implementing PgBouncer to manage PostgreSQL contention.
+3. **Multi-Node Distribution**: Moving workers to separate physical hosts to resolve I/O and CPU contention.

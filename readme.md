@@ -1,4 +1,4 @@
-# Async Report Processing System
+# Async Report Engine
 
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 ![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white)
@@ -11,9 +11,9 @@ A backend system that demonstrates how to offload CPU-intensive workloads from t
 
 ## Overview
 
-This project explores how to design a Node.js backend that remains responsive under CPU-heavy workloads by separating API request handling from background task execution.
+This project explores how to design a Node.js backend that remains responsive under CPU-heavy workloads by separating API request handling from background task execution. 
 
-Instead of executing a 3-second CPU-bound task inside the HTTP lifecycle, incoming requests are enqueued and processed asynchronously by dedicated worker processes. This ensures the API layer remains responsive even when workers are fully utilized.
+Instead of executing heavy tasks inside the HTTP lifecycle, incoming requests are enqueued and processed asynchronously by dedicated worker processes. This ensures the API layer remains responsive even when workers are fully utilized.
 
 The focus of this project is architectural design, event loop isolation, and system behavior under sustained load.
 
@@ -21,12 +21,14 @@ The focus of this project is architectural design, event loop isolation, and sys
 
 ## Tech Stack
 
-- Node.js & Express – API framework  
-- TypeScript – Type safety and maintainability  
-- Redis & BullMQ – Message broker and job queue management  
-- PostgreSQL & Prisma – Relational database and ORM  
-- Docker & Docker Compose – Containerized services  
-- Artillery – Load testing and benchmarking  
+- **Node.js & Express** – API framework
+- **TypeScript** – Type safety and maintainability
+- **Redis & BullMQ** – Message broker and job queue management
+- **PostgreSQL & Prisma** – Relational database and ORM
+- **Docker & Docker Compose** – Containerized services
+- **Artillery** – Load testing and benchmarking
+- **Pino** – Structured JSON logging and observability
+- **BullBoard** – Queue observability dashboard
 
 ---
 
@@ -43,24 +45,26 @@ The system follows common distributed system patterns for decoupled background p
 
 ---
 
-## Performance Benchmarking
+## Performance & Scaling Analysis
 
-Load testing was conducted at sustained request rates (50–75 requests/sec) for 60 seconds to compare:
+The system was benchmarked under sustained load (~100 requests/sec) using a **deterministic workload** of 100M math iterations per job:
 
-- A synchronous, event-loop-blocking implementation  
-- A distributed BullMQ-based worker model  
+### 1. Synchronous Baseline
+- **Execution**: CPU-bound logic executed on the main thread.
+- **Result**: Event loop blocked; success rate < 1.1%.
+- **System State**: Total collapse/unresponsiveness.
 
-### Observations
+### 2. Distributed – Single Worker
+- **Execution**: Tasks offloaded to one worker (concurrency: 4).
+- **Result**: API remained responsive; success rate ~91.4%.
+- **Observation**: Redis successfully buffered burst traffic (backpressure).
 
-- The synchronous model collapsed due to event loop blocking.
-- The distributed model kept the API responsive under load.
-- Under extreme traffic, the system reached infrastructure saturation (database/network limits) rather than application-level failure.
-- Successfully ingested jobs were processed to completion by workers.
-- Redis buffered incoming jobs when workers were at capacity (backpressure).
+### 3. Distributed – Three Workers
+- **Execution**: Workers scaled to three containers (12 concurrent jobs).
+- **Result**: Observed success rate decreased to ~9.7%.
+- **Bottleneck**: Shifted from CPU to PostgreSQL connection contention and host-level I/O limits.
 
-Detailed metrics, latency distributions, and saturation analysis are available in:
-
-[View Detailed Performance Breakdown](docs/performance-baseline.md)
+[Detailed benchmark data](docs/performance-baseline.md)
 
 ---
 
@@ -84,3 +88,15 @@ Ensure Docker and Docker Compose are installed.
 git clone https://github.com/poojithpagadekal/async-report-engine.git
 cd async-report-engine
 docker-compose up --build
+```
+---
+##  Monitoring & Observability
+
+### BullBoard Dashboard
+
+After starting the Docker containers, you can monitor queue state, active workers, and job progress in real time using the BullBoard UI.
+
+**Local Access:**  
+http://localhost:5000/admin/queues
+
+> The dashboard is only accessible while the Docker containers are running locally.
