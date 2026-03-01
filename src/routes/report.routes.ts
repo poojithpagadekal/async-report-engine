@@ -5,12 +5,11 @@ reportRoute.post("/generate-report", async (req: Request, res: Response) => {
   try {
     console.log(`Request received at ${new Date().toISOString()}`);
 
-    //simulation of heavy task
-    const start = Date.now();
-    while (Date.now() - start <= 3000) {
-      //Busy loop blocks event loop
+    let result = 0;
+    const iterations = 100000000;
+    for (let i = 0; i < iterations; i++) {
+      result += Math.sqrt(i * Math.random());
     }
-
     console.log(`Processing finished at ${new Date().toISOString()}`);
 
     return res.status(201).json({
