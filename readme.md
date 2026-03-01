@@ -11,9 +11,9 @@ A backend system that demonstrates how to offload CPU-intensive workloads from t
 
 ## Overview
 
-This project explores how to design a Node.js backend that remains responsive under CPU-heavy workloads by separating API request handling from background task execution.
+This project explores how to design a Node.js backend that remains responsive under CPU-heavy workloads by separating API request handling from background task execution. 
 
-Instead of executing a 3-second CPU-bound task inside the HTTP lifecycle, incoming requests are enqueued and processed asynchronously by dedicated worker processes. This ensures the API layer remains responsive even when workers are fully utilized.
+Instead of executing heavy tasks inside the HTTP lifecycle, incoming requests are enqueued and processed asynchronously by dedicated worker processes. This ensures the API layer remains responsive even when workers are fully utilized.
 
 The focus of this project is architectural design, event loop isolation, and system behavior under sustained load.
 
@@ -21,13 +21,14 @@ The focus of this project is architectural design, event loop isolation, and sys
 
 ## Tech Stack
 
-- Node.js & Express – API framework  
-- TypeScript – Type safety and maintainability  
-- Redis & BullMQ – Message broker and job queue management  
-- PostgreSQL & Prisma – Relational database and ORM  
-- Docker & Docker Compose – Containerized services  
-- Artillery – Load testing and benchmarking  
-- BullBoard – Queue observability dashboard  
+- **Node.js & Express** – API framework
+- **TypeScript** – Type safety and maintainability
+- **Redis & BullMQ** – Message broker and job queue management
+- **PostgreSQL & Prisma** – Relational database and ORM
+- **Docker & Docker Compose** – Containerized services
+- **Artillery** – Load testing and benchmarking
+- **Pino** – Structured JSON logging and observability
+- **BullBoard** – Queue observability dashboard
 
 ---
 
@@ -46,38 +47,22 @@ The system follows common distributed system patterns for decoupled background p
 
 ## Performance & Scaling Analysis
 
-The system was benchmarked under sustained load (50–75 requests/sec) across three configurations:
+The system was benchmarked under sustained load (~100 requests/sec) using a **deterministic workload** of 100M math iterations per job:
 
 ### 1. Synchronous Baseline
-
-- CPU-bound logic executed on the main thread  
-- Event loop blocked  
-- Success rate: <0.1%  
-- System became unresponsive  
-
-**Failure mode:** Application-level design flaw
-
----
+- **Execution**: CPU-bound logic executed on the main thread.
+- **Result**: Event loop blocked; success rate < 1.1%.
+- **System State**: Total collapse/unresponsiveness.
 
 ### 2. Distributed – Single Worker
+- **Execution**: Tasks offloaded to one worker (concurrency: 4).
+- **Result**: API remained responsive; success rate ~91.4%.
+- **Observation**: Redis successfully buffered burst traffic (backpressure).
 
-- Tasks processed by one worker (concurrency: 4)  
-- API remained responsive  
-- Success rate: ~64%  
-- Redis buffered excess load (backpressure)  
-
-**Failure mode:** Infrastructure saturation under extreme load
-
----
-
-### 3. Distributed – Three Workers (12 concurrent jobs)
-
-- Workers scaled to three containers  
-- Increased compute parallelism  
-- Observed success rate decreased to ~13%  
-- Primary bottleneck shifted to PostgreSQL connection contention and I/O limits  
-
-Increasing compute throughput exposed persistence-layer limits.
+### 3. Distributed – Three Workers
+- **Execution**: Workers scaled to three containers (12 concurrent jobs).
+- **Result**: Observed success rate decreased to ~9.7%.
+- **Bottleneck**: Shifted from CPU to PostgreSQL connection contention and host-level I/O limits.
 
 [Detailed benchmark data](docs/performance-baseline.md)
 
