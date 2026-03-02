@@ -20,18 +20,28 @@ export const updateJobStatus = async (
   jobId: string,
   status: JobStatus,
   progress?: number,
+  errorMessage?: string,
 ) => {
-  const updateData: Prisma.JobUpdateInput = { status };
+  const updateData: Prisma.JobUpdateInput = {
+    status,
+    errorMessage: errorMessage ?? null,
+  };
 
   if (progress !== undefined) updateData.progress = progress;
 
   switch (status) {
+    case JobStatus.PENDING:
+      updateData.startedAt = null;
+      updateData.progress = 0;
+      break;
     case JobStatus.PROCESSING:
       updateData.startedAt = new Date();
       break;
     case JobStatus.COMPLETED:
       updateData.completedAt = new Date();
       updateData.progress = 100;
+      break;
+    case JobStatus.FAILED:
       break;
   }
 

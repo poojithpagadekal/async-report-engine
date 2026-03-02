@@ -1,24 +1,53 @@
 import { Request, Response, NextFunction } from "express";
-import { success, z, ZodError } from "zod";
+import { ZodTypeAny, ZodError } from "zod";
 
 export const validate =
-  (schema: z.ZodType<any, any, any>) =>
-  (req: Request, res: Response, next: NextFunction) => {
-    const result = schema.safeParse({
-      body: req.body,
-      query: req.query,
-      params: req.params,
-    });
-    if (!result.success) {
-      return res.status(400).json({
+  (schema: ZodTypeAny) =>
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = await schema.parseAsync({
+        body: req.body,
+        query: req.query,
+        params: req.params,
+      });
+
+      req.body = (parsed as any).body;
+      req.query = (parsed as any).query;
+      req.params = (parsed as any).params;
+
+      return next();
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const flattened = error.flatten();
+
+        req.log.warn(
+          {
+            path: req.path,
+            method: req.method,
+            errors: flattened.fieldErrors,
+          },
+          "Request validation failed",
+        );
+
+        return res.status(400).json({
+          success: false,
+          message: "Invalid request data",
+          errors: flattened.fieldErrors,
+        });
+      }
+
+      req.log.error(
+        {
+          err: error,
+          path: req.path,
+          method: req.method,
+        },
+        "Validation middleware crashed",
+      );
+
+      return res.status(500).json({
         success: false,
-        message: "Validation error",
-        errors: result.error.flatten().fieldErrors,
+        message: "Internal validation error",
       });
     }
-
-    if (result.data.body) {
-      req.body = result.data.body;
-    }
-    next();
   };

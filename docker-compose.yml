@@ -13,7 +13,8 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/reports_db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-    command: sh -c "npx prisma migrate deploy && node dist/server.js"
+    command: ["node", "dist/server.js"]
+    stop_grace_period: 30s
 
   worker:
     build: .
@@ -24,10 +25,9 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/reports_db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-    command: node dist/workers/job.worker.js
+    command: node dist/workers/worker-server.js
     deploy:
       replicas: ${WORKER_REPLICAS:-1}
-    
 
   postgres:
     image: postgres:15

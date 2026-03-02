@@ -23,8 +23,7 @@ export default async function (job: Job) {
   try {
     jobLog.info("Job execution started: Work-based CPU load");
 
-    await updateJobStatus(jobId, "PROCESSING");
-    await job.updateProgress(10);
+    await job.updateProgress(0);
 
     performHeavyComputation(20_000_000);
     await job.updateProgress(30);
@@ -34,8 +33,6 @@ export default async function (job: Job) {
 
     performHeavyComputation(20_000_000);
     await job.updateProgress(100);
-
-    await updateJobStatus(jobId, "COMPLETED");
 
     const totalDuration = Date.now() - startTimestamp;
     jobLog.info(
@@ -50,9 +47,8 @@ export default async function (job: Job) {
         err: error,
         stack: error instanceof Error ? error.stack : undefined,
       },
-      "Job execution failed",
+      "Processor encountered an error",
     );
-    await updateJobStatus(jobId, "FAILED");
     throw error;
   }
 }

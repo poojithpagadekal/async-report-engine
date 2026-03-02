@@ -2,14 +2,36 @@ import { Request, Response } from "express";
 import { createJob, getAllJobs, updateJobStatus } from "./job.service";
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { jobQueue } from "./job.queue";
+import { z } from "zod";
+import { CreateJobSchema } from "./job.schema";
 
-export const createJobHandler = async (req: Request, res: Response) => {
+type createJobInput = z.infer<typeof CreateJobSchema>["body"];
+
+export const createJobHandler = async (
+  req: Request<{}, {}, createJobInput>,
+  res: Response,
+) => {
   try {
     const { userId, title, type } = req.body;
     const job = await createJob(userId, title, type);
-    await jobQueue.add("processJob", {
-      jobId: job.id,
-    });
+    await jobQueue.add(
+      "processJob",
+      { jobId: job.id },
+      {
+        attempts: 5,
+        backoff: {
+          type: "exponential",
+          delay: 10000,
+        },
+        removeOnComplete: {
+          age: 3600,
+          count: 1000,
+        },
+        removeOnFail: {
+          age: 24 * 3600,
+        },
+      },
+    );
     return res.status(201).json({
       job,
     });
