@@ -9,6 +9,12 @@ export const CreateJobSchema = z.object({
   }),
 });
 
+export const GetJobByIdSchema = z.object({
+  params: z.object({
+    jobId: z.string().uuid("Invalid Job Id format"),
+  }),
+});
+
 export const UpdateJobSchema = z.object({
   params: z.object({
     jobId: z.string().uuid("Invalid Job Id format"),
