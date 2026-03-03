@@ -1,102 +1,161 @@
 # Async Report Engine
 
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
-![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white)
-![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
+![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
 
-A backend system that demonstrates how to offload CPU-intensive workloads from the main request-response cycle using a distributed job queue architecture.
-
----
-
-## Overview
-
-This project explores how to design a Node.js backend that remains responsive under CPU-heavy workloads by separating API request handling from background task execution. 
-
-Instead of executing heavy tasks inside the HTTP lifecycle, incoming requests are enqueued and processed asynchronously by dedicated worker processes. This ensures the API layer remains responsive even when workers are fully utilized.
-
-The focus of this project is architectural design, event loop isolation, and system behavior under sustained load.
+A backend project exploring how to handle CPU-intensive tasks without blocking the Node.js event loop, using a distributed job queue architecture.
 
 ---
 
-## Tech Stack
+## The Problem
 
-- **Node.js & Express** – API framework
-- **TypeScript** – Type safety and maintainability
-- **Redis & BullMQ** – Message broker and job queue management
-- **PostgreSQL & Prisma** – Relational database and ORM
-- **Docker & Docker Compose** – Containerized services
-- **Artillery** – Load testing and benchmarking
-- **Pino** – Structured JSON logging and observability
-- **BullBoard** – Queue observability dashboard
+Node.js runs on a single-threaded event loop. Running CPU-heavy logic directly inside an HTTP handler blocks the loop entirely — the server can't respond to anything else while it's computing. Under sustained load, this causes cascading timeouts and full unresponsiveness.
+
+This project addresses that by separating concerns: the API only validates and enqueues jobs, while isolated worker processes handle the computation asynchronously.
+
+This pattern shows up in real systems handling report generation, video encoding, AI inference, and payment processing pipelines — anywhere a task is too slow to live inside a request-response cycle.
 
 ---
 
 ## Architecture
 
-1. Client submits a task request  
-2. API validates input and enqueues a job using BullMQ  
-3. Redis stores and manages queue state  
-4. Dedicated worker processes consume jobs asynchronously  
-5. Workers update PostgreSQL as job states transition (`PROCESSING` → `COMPLETED`)  
-6. Clients poll the API for job status and results  
+```
+Client → [Express API] → [BullMQ Queue] → [Worker Process(es)]
+                ↑               ↓                   ↓
+           (poll status)     [Redis]          [PostgreSQL]
+```
 
-The system follows common distributed system patterns for decoupled background processing and workload isolation.
+1. Client creates a user, then submits a job via `POST /api/jobs`
+2. API validates the request with Zod and enqueues a job into BullMQ
+3. Redis stores the queue state and manages job lifecycle
+4. Worker processes pick up jobs from the queue (concurrency: 4 per worker)
+5. The processor runs 100M iterations of CPU-bound math, reporting progress at 30%, 80%, and 100%
+6. Job status transitions (`PENDING → PROCESSING → COMPLETED / FAILED`) are written to PostgreSQL
+7. Client polls `GET /api/jobs` for status and results
 
----
-
-## Performance & Scaling Analysis
-
-The system was benchmarked under sustained load (~100 requests/sec) using a **deterministic workload** of 100M math iterations per job:
-
-### 1. Synchronous Baseline
-- **Execution**: CPU-bound logic executed on the main thread.
-- **Result**: Event loop blocked; success rate < 1.1%.
-- **System State**: Total collapse/unresponsiveness.
-
-### 2. Distributed – Single Worker
-- **Execution**: Tasks offloaded to one worker (concurrency: 4).
-- **Result**: API remained responsive; success rate ~91.4%.
-- **Observation**: Redis successfully buffered burst traffic (backpressure).
-
-### 3. Distributed – Three Workers
-- **Execution**: Workers scaled to three containers (12 concurrent jobs).
-- **Result**: Observed success rate decreased to ~9.7%.
-- **Bottleneck**: Shifted from CPU to PostgreSQL connection contention and host-level I/O limits.
-
-[Detailed benchmark data](docs/performance-baseline.md)
+The API and worker run as **separate containers** — compute pressure on the worker never reaches the API event loop.
 
 ---
 
-## Key Concepts Demonstrated
+## Tech Stack
 
-- Asynchronous job processing  
-- Event loop isolation in Node.js  
-- Sandboxed worker processes  
-- Backpressure handling via Redis  
-- Separation of API and worker services  
-- Graceful degradation under load  
-- Performance benchmarking and bottleneck analysis  
+| Layer | Technology |
+| :--- | :--- |
+| API Framework | Node.js, Express, TypeScript |
+| Queue / Broker | BullMQ, Redis 7 |
+| Database / ORM | PostgreSQL 15, Prisma |
+| Validation | Zod |
+| Rate Limiting | express-rate-limit |
+| Logging | Pino |
+| Observability | BullBoard |
+| Containerization | Docker, Docker Compose |
+| Load Testing | Artillery |
 
 ---
 
-## Running Locally
+## API Reference
 
-Ensure Docker and Docker Compose are installed.
+All routes are prefixed with `/api`.
+
+### Users
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/users` | Create a new user |
+| `GET` | `/api/users` | List all users and their jobs |
+
+```json
+// POST /api/users
+{
+  "email": "user@example.com",
+  "name": "John"
+}
+```
+
+### Jobs
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/jobs` | Submit a new job (rate limited: 50 req/min) |
+| `GET` | `/api/jobs` | List all jobs with user info |
+| `PATCH` | `/api/jobs/:jobId` | Update job status and progress |
+
+```json
+// POST /api/jobs
+{
+  "userId": "94c027b2-a44d-4962-9946-7de970e1a9b2",
+  "title": "Q4 Sales Report",
+  "type": "PDF_EXPORT"
+}
+```
+
+---
+
+## Resilience Features
+
+**Graceful shutdown** — on `SIGTERM`, the system stops the HTTP server first, waits for the active worker job to finish, then disconnects Prisma and Redis. A 30-second force-exit timer acts as a safety net.
+
+**Retry with exponential backoff** — jobs are retried up to 5 times with `10s × 2ⁿ` delays, handling transient DB or network errors without immediately marking a job as failed.
+
+**Rate limiting** — `POST /api/jobs` is capped at 50 requests per minute. Requests over the limit get a `429` with a retry message.
+
+**Input validation** — every endpoint uses a Zod middleware that validates, sanitizes, and strips unknown fields before the request reaches the controller.
+
+---
+
+## Getting Started
+
+**Prerequisites**: Docker and Docker Compose.
 
 ```bash
 git clone https://github.com/poojithpagadekal/async-report-engine.git
 cd async-report-engine
 docker-compose up --build
 ```
+
+| Service | URL |
+| :--- | :--- |
+| API | http://localhost:5000 |
+| BullBoard dashboard | http://localhost:5000/admin/queues |
+
+To run with multiple workers:
+
+```bash
+WORKER_REPLICAS=3 docker-compose up --build
+```
+
+### Workflow
+
+```bash
+# 1. Create a user
+curl -X POST http://localhost:5000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"email": "test@example.com", "name": "Test User"}'
+
+# 2. Submit a job using the returned userId
+curl -X POST http://localhost:5000/api/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "<userId>", "title": "Q4 Sales Report", "type": "PDF_EXPORT"}'
+
+# 3. Poll for status
+curl http://localhost:5000/api/jobs
+```
+
 ---
-##  Monitoring & Observability
 
-### BullBoard Dashboard
+## Performance Benchmarks
 
-After starting the Docker containers, you can monitor queue state, active workers, and job progress in real time using the BullBoard UI.
+Tested with Artillery at ~100 req/sec using 100M math iterations per job on a single host.
 
-**Local Access:**  
-http://localhost:5000/admin/queues
+| Phase | Architecture | Success Rate | Bottleneck |
+| :--- | :--- | :--- | :--- |
+| **1 — Sync** | Blocking, single-threaded | ~1.1% | Event loop blocked by CPU work |
+| **2 — 1 Worker** | Decoupled worker process | ~91.4% | Worker CPU throughput |
+| **3 — 3 Workers** | Horizontally scaled | ~9.7% | DB connection contention + host CPU |
 
-> The dashboard is only accessible while the Docker containers are running locally.
+The Phase 3 regression — where adding more workers made things worse — is the most interesting result. The API and worker run in separate containers, but all containers on the same host share the same physical CPU cores. Three CPU-saturating workers competing for the same cores meant each got less time than before, and parallel DB writes exceeded the connection pool capacity on top of that. It demonstrates infrastructure saturation rather than an application-level failure.
+
+Full analysis: [docs/performance-baseline.md](docs/performance-baseline.md)
