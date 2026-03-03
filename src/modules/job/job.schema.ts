@@ -24,3 +24,10 @@ export const UpdateJobSchema = z.object({
     progress: z.number().min(0).max(100).optional(),
   }),
 });
+
+export const GetAllJobsSchema = z.object({
+  query: z.object({
+    page: z.coerce.number().min(1).default(1),
+    limit: z.coerce.number().min(1).max(50).default(10),
+  }),
+});

@@ -12,8 +12,28 @@ export const createJob = async (
   });
 };
 
-export const getAllJobs = async () => {
-  return prisma.job.findMany({ include: { user: true } });
+export const getAllJobs = async (page: number, limit: number) => {
+  const skip = (page - 1) * limit;
+
+  const [jobs, total] = await Promise.all([
+    prisma.job.findMany({
+      skip,
+      take: limit,
+      include: { user: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.job.count(),
+  ]);
+
+  return {
+    jobs,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
 };
 
 export const getJobById = async (jobId: string) => {

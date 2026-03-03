@@ -8,9 +8,10 @@ import {
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { jobQueue } from "./job.queue";
 import { z } from "zod";
-import { CreateJobSchema } from "./job.schema";
+import { CreateJobSchema, GetAllJobsSchema } from "./job.schema";
 
 type createJobInput = z.infer<typeof CreateJobSchema>["body"];
+type GetAllJobsQuery = z.infer<typeof GetAllJobsSchema>["query"];
 
 export const createJobHandler = async (
   req: Request<{}, {}, createJobInput>,
@@ -57,12 +58,11 @@ export const createJobHandler = async (
   }
 };
 
-export const getJobHandler = async (req: Request, res: Response) => {
+export const getJobHandler = async (req: Request<{},{},{},GetAllJobsQuery>, res: Response) => {
   try {
-    const jobs = await getAllJobs();
-    return res.status(200).json({
-      jobs,
-    });
+    const { page, limit } = req.query;
+    const result = await getAllJobs(page, limit);
+    return res.status(200).json(result);
   } catch (error) {
     req.log.error({ err: error }, "Failed to fetch jobs");
     return res.status(500).json({
