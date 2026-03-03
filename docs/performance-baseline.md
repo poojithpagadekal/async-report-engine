@@ -1,83 +1,71 @@
-# Performance & Scalability Analysis
+# Performance Analysis
 
-This document summarizes load testing results across three architectural stages, transitioning from a monolithic synchronous model to a distributed, horizontally scaled worker architecture.
-
-Tests were executed using Artillery under sustained load (~100 req/sec) on a single host.
-
----
+Load tested with Artillery across three architectural stages at ~100 req/sec on a single host. The workload is deterministic — 100M square-root iterations per job split across three stages (20M → 60M → 20M) — so results reflect real CPU pressure rather than artificial delays.
 
 ## Test Configuration
 
-- **Workload**: 100 Million deterministic square-root operations per job (Work-based CPU saturation).
-- **Environment**: Dockerized API, Redis, PostgreSQL, Worker(s).
-- **Host**: Single machine (multi-core).
+| Parameter | Value |
+| :--- | :--- |
+| Tool | Artillery |
+| Load | ~100 req/sec sustained |
+| Workload | 100M square-root iterations per job |
+| Environment | Dockerized API + Redis + PostgreSQL + Worker(s) |
+| Host | Single machine (multi-core) |
 
 ---
 
 ## Phase 1 — Synchronous (Blocking)
 
-CPU task executed directly inside the HTTP request-response lifecycle.
+CPU-bound logic executed directly inside the HTTP request handler.
 
 | Metric | Result |
 | :--- | :--- |
-| **Total Requests** | 3,120 |
-| **Success Rate** | ~1.1% (35 successful) |
-| **Failures** | 3,085 ETIMEDOUT |
-| **Mean Latency** | 5,583.5 ms |
-| **System State** | Collapsed |
+| Total Requests | 3,120 |
+| Success Rate | ~1.1% (35 successful) |
+| Failures | 3,085 ETIMEDOUT |
+| Mean Latency | 5,583.5 ms |
 
-**Bottleneck: Event Loop Blocking** The Node.js main thread was 100% occupied by math iterations. The server became unresponsive and could not acknowledge new TCP handshakes, causing massive timeouts.
+The main thread was fully occupied running math and couldn't process new connections. Nearly every request timed out. This is a design problem — not a resource limit.
 
 ---
 
-## Phase 2 — Distributed (1 Worker)
+## Phase 2 — Single Worker Process
 
-Jobs offloaded to a single worker process (concurrency: 4).
+CPU work offloaded to a dedicated worker container (concurrency: 4).
 
 | Metric | Result |
 | :--- | :--- |
-| **Total Requests** | 3,000 |
-| **Success Rate** | ~91.4% |
-| **Failures** | 258 ETIMEDOUT |
-| **Mean Latency** | 1,545 ms |
-| **p99 Latency** | 9,801.2 ms |
+| Total Requests | 3,000 |
+| Success Rate | ~91.4% (2,742 successful) |
+| Failures | 258 ETIMEDOUT |
+| Mean Latency | 1,545 ms |
+| p99 Latency | 9,801.2 ms |
 
-**Bottleneck: Worker Compute Throughput** The API remained responsive with low initial latency (3.4 ms). However, as the single worker reached its compute limit, backpressure built up in the Redis queue, leading to increased latency and terminal timeouts as ingestion outpaced processing capacity.
+The API stayed responsive — initial latency dropped to ~3.4 ms. As the worker saturated its CPU allocation, the Redis queue backed up. Jobs submitted late in the test waited too long and timed out on the client side. Redis absorbed the burst rather than dropping jobs, which is the expected behavior.
 
 ---
 
-## Phase 3 — Horizontal Scaling (3 Workers)
+## Phase 3 — Three Worker Containers
 
-Workers scaled to 3 replicas (logical concurrency: 12 jobs configured) on the same host.
+Three worker replicas on the same host (logical concurrency: 12 jobs).
 
 | Metric | Result |
 | :--- | :--- |
-| **Total Requests** | 3,000 |
-| **Success Rate** | ~9.7% |
-| **Failures** | 2,710 ETIMEDOUT |
-| **Mean Latency** | 5,745 ms |
+| Total Requests | 3,000 |
+| Success Rate | ~9.7% (291 successful) |
+| Failures | 2,710 ETIMEDOUT |
+| Mean Latency | 5,745 ms |
 
-**Bottleneck: Database & I/O Contention** Scaling compute exposed infrastructure limits. Parallel workers competing for the same physical CPU resources and PostgreSQL connection pool caused a "Thundering Herd" effect. Resource contention at the persistence layer became the primary limiting factor.
+Adding workers made things worse — this is the most instructive result. Although each worker runs in its own container, all containers on the same host share the same physical CPU cores. Three CPU-saturating workers competing for the same cores meant each got less throughput than one worker alone. On top of that, parallel workers hitting PostgreSQL simultaneously exceeded the connection pool capacity, causing contention on every status update. This demonstrates infrastructure saturation rather than an application-level failure.
 
 ---
 
-## Bottleneck Evolution
+## Bottleneck Summary
 
-| Phase | Primary Limitation | System Maturity |
+| Phase | Bottleneck | Type |
 | :--- | :--- | :--- |
-| **Sync** | Event Loop (Software Design) | Fragile |
-| **1 Worker** | CPU Throughput (Compute) | Resilient |
-| **3 Workers** | Database / I/O (Infrastructure) | Scalable |
+| Sync | Event loop blocked | Design flaw — solved ✓ |
+| 1 Worker | CPU throughput ceiling | Compute limit |
+| 3 Workers | Shared host CPU + DB contention | Infrastructure limit |
 
-The architecture successfully eliminated application-level blocking. Under higher concurrency, failures shifted from software design flaws to measurable infrastructure constraints.
-
----
-
-## Conclusion
-
-The transition to a distributed worker model removed event loop starvation and enabled controlled degradation under load. By moving from time-based waiting to a deterministic 100M iteration workload, the benchmarks reflect real-world computational stress.
-
-**Future Hardening Required**:
-1. **API Rate Limiting**: To prevent infrastructure saturation during bursts.
-2. **Connection Pooling**: Implementing PgBouncer to manage PostgreSQL contention.
-3. **Multi-Node Distribution**: Moving workers to separate physical hosts to resolve I/O and CPU contention.
+The architecture eliminated the application-level problem in Phase 1. Phases 2 and 3 expose infrastructure constraints that would be addressed by running workers on separate physical hosts and adding a database connection pooler (e.g. PgBouncer).
