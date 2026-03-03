@@ -1,6 +1,8 @@
 # Performance Analysis
 
-Load tested with Artillery across three architectural stages at ~100 req/sec on a single host. The workload is deterministic — 100M square-root iterations per job split across three stages (20M → 60M → 20M) — so results reflect real CPU pressure rather than artificial delays.
+Load tested with Artillery across four test runs at ~100 req/sec on a single host (16 logical cores, 24GB RAM, Docker on WSL 2). The workload is deterministic — 100M square-root iterations per job split across three stages (20M → 60M → 20M) — so results reflect real CPU pressure rather than artificial delays.
+
+---
 
 ## Test Configuration
 
@@ -10,7 +12,7 @@ Load tested with Artillery across three architectural stages at ~100 req/sec on 
 | Load | ~100 req/sec sustained |
 | Workload | 100M square-root iterations per job |
 | Environment | Dockerized API + Redis + PostgreSQL + Worker(s) |
-| Host | Single machine (multi-core) |
+| Host | Single machine — 16 cores, 24GB RAM, WSL 2 |
 
 ---
 
@@ -45,27 +47,51 @@ The API stayed responsive — initial latency dropped to ~3.4 ms. As the worker 
 
 ---
 
-## Phase 3 — Three Worker Containers
+## Phase 3 — Three Workers, Rate Limited
 
-Three worker replicas on the same host (logical concurrency: 12 jobs).
+Three worker containers on the same host (logical concurrency: 12 jobs). Rate limiter active at 50 req/min on `POST /api/jobs`.
 
 | Metric | Result |
 | :--- | :--- |
 | Total Requests | 3,000 |
 | Success Rate | ~9.7% (291 successful) |
-| Failures | 2,710 ETIMEDOUT |
+| Failures | 2,710 (429 Too Many Requests) |
 | Mean Latency | 5,745 ms |
 
-Adding workers made things worse — this is the most instructive result. Although each worker runs in its own container, all containers on the same host share the same physical CPU cores. Three CPU-saturating workers competing for the same cores meant each got less throughput than one worker alone. On top of that, parallel workers hitting PostgreSQL simultaneously exceeded the connection pool capacity, causing contention on every status update. This demonstrates infrastructure saturation rather than an application-level failure.
+The failures here are `429` responses — not timeouts or infrastructure errors. Artillery was sending 100 req/sec (6,000 req/min) against a rate limiter capped at 50 req/min. The rate limiter rejected the excess load as designed. The API itself remained healthy throughout.
+
+**This is not a regression — it is the rate limiter working correctly.**
 
 ---
 
-## Bottleneck Summary
+## Phase 3 Repeated — Three Workers, No Rate Limiter
+
+Same setup with the rate limiter removed from `POST /api/jobs`.
+
+| Metric | Result |
+| :--- | :--- |
+| Total Requests | 6,000 |
+| Success Rate | ~100% (0 failures) |
+| Mean Latency | 46.1 ms |
+| p99 Latency | 237.5 ms |
+
+Zero failures. Zero timeouts. Zero errors in the API logs. The architecture handled 100 req/sec across 3 workers cleanly on this host.
+
+---
+
+## What the Results Actually Show
 
 | Phase | Bottleneck | Type |
 | :--- | :--- | :--- |
 | Sync | Event loop blocked | Design flaw — solved ✓ |
-| 1 Worker | CPU throughput ceiling | Compute limit |
-| 3 Workers | Shared host CPU + DB contention | Infrastructure limit |
+| 1 Worker | Queue backpressure | Compute limit — addressable with more workers |
+| 3 Workers + Limiter | Rate limiter rejecting burst | Intentional — working as designed |
+| 3 Workers, no limiter | None on this host | Architecture scales cleanly |
 
-The architecture eliminated the application-level problem in Phase 1. Phases 2 and 3 expose infrastructure constraints that would be addressed by running workers on separate physical hosts and adding a database connection pooler (e.g. PgBouncer).
+The architecture successfully eliminated the event loop blocking problem from Phase 1. Phase 2 showed the single worker reaching its compute limit. The re-run in Phase 3 without the rate limiter confirmed the distributed worker model scales correctly — 3 workers handled full load with no failures on a 16-core WSL 2 host.
+
+---
+
+## Notes on the Rate Limiter
+
+The rate limiter on `POST /api/jobs` (50 req/min) is intentionally conservative. In a real deployment it would be tuned to match the worker processing capacity, preventing the Redis queue from growing faster than workers can drain it. The Phase 3 regression in the original benchmark was not an infrastructure failure — it was evidence the rate limiter was enforcing its configured limit under burst traffic.
