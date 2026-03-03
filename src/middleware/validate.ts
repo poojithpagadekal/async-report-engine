@@ -11,9 +11,11 @@ export const validate =
         params: req.params,
       });
 
-      req.body = (parsed as any).body;
-      req.query = (parsed as any).query;
-      req.params = (parsed as any).params;
+      if ((parsed as any).body !== undefined) req.body = (parsed as any).body;
+      if ((parsed as any).query !== undefined)
+        req.query = (parsed as any).query;
+      if ((parsed as any).params !== undefined)
+        req.params = (parsed as any).params;
 
       return next();
     } catch (error) {
