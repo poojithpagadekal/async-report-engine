@@ -80,11 +80,13 @@ All routes are prefixed with `/api`.
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | `POST` | `/api/jobs` | Submit a new job (rate limited: 50 req/min) |
-| `GET` | `/api/jobs` | List all jobs with user info |
+| `GET` | `/api/jobs?page=1&limit=10` | List jobs (paginated, defaults: page=1, limit=10) |
+| `GET` | `/api/jobs/:jobId` | Get a single job by ID |
 | `PATCH` | `/api/jobs/:jobId` | Update job status and progress |
 
 ```json
 // POST /api/jobs
+// type must be one of: SALES_REPORT, USER_ANALYTICS, PDF_EXPORT
 {
   "userId": "94c027b2-a44d-4962-9946-7de970e1a9b2",
   "title": "Q4 Sales Report",
@@ -121,10 +123,14 @@ docker-compose up --build
 | API | http://localhost:5000 |
 | BullBoard dashboard | http://localhost:5000/admin/queues |
 
-To run with multiple workers:
+To run with multiple workers (matches Phase 3 benchmark):
 
 ```bash
+# Linux/macOS
 WORKER_REPLICAS=3 docker-compose up --build
+
+# Windows PowerShell
+$env:WORKER_REPLICAS=3; docker-compose up --build
 ```
 
 ### Workflow
@@ -140,9 +146,19 @@ curl -X POST http://localhost:5000/api/jobs \
   -H "Content-Type: application/json" \
   -d '{"userId": "<userId>", "title": "Q4 Sales Report", "type": "PDF_EXPORT"}'
 
-# 3. Poll for status
-curl http://localhost:5000/api/jobs
+# 3. Poll for status (paginated)
+curl http://localhost:5000/api/jobs?page=1&limit=10
 ```
+
+---
+
+## Observability
+
+**Pino logging**: Every request gets a unique `requestId`. Worker logs include `jobId` and `attempt` number. All logs are structured NDJSON, making them easy to filter by field.
+
+**BullBoard**: Live queue dashboard at `http://localhost:5000/admin/queues` — shows active, completed, delayed, and failed jobs in real time.
+
+![BullBoard Demo](docs/bullboard-demo.png)
 
 ---
 
