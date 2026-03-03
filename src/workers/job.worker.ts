@@ -61,4 +61,4 @@ worker.on("failed", async (job, err) => {
   }
 });
 
-console.log("Worker started");
+logger.info("Worker container running");

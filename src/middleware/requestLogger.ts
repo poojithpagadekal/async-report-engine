@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { randomUUID } from "node:crypto";
 import { logger } from "../utils/logger";
-import { url } from "node:inspector";
 
 export const requestLogger = (
   req: Request,
