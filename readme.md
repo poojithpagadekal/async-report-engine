@@ -102,7 +102,7 @@ All routes are prefixed with `/api`.
 
 **Retry with exponential backoff** — jobs are retried up to 5 times with `10s × 2ⁿ` delays, handling transient DB or network errors without immediately marking a job as failed.
 
-**Rate limiting** — `POST /api/jobs` is capped at 50 requests per minute. Requests over the limit get a `429` with a retry message.
+**Rate limiting** — `POST /api/jobs` is capped at 50 requests per minute. Requests over the limit get a `429` with a retry message. This intentionally controls ingestion rate to prevent the queue from growing faster than workers can drain it.
 
 **Input validation** — every endpoint uses a Zod middleware that validates, sanitizes, and strips unknown fields before the request reaches the controller.
 
@@ -164,14 +164,15 @@ curl http://localhost:5000/api/jobs?page=1&limit=10
 
 ## Performance Benchmarks
 
-Tested with Artillery at ~100 req/sec using 100M math iterations per job on a single host.
+Tested with Artillery at ~100 req/sec using 100M math iterations per job on a single host (16 cores, 24GB RAM, Docker on WSL 2).
 
-| Phase | Architecture | Success Rate | Bottleneck |
+| Phase | Architecture | Success Rate | Finding |
 | :--- | :--- | :--- | :--- |
 | **1 — Sync** | Blocking, single-threaded | ~1.1% | Event loop blocked by CPU work |
-| **2 — 1 Worker** | Decoupled worker process | ~91.4% | Worker CPU throughput |
-| **3 — 3 Workers** | Horizontally scaled | ~9.7% | DB connection contention + host CPU |
+| **2 — 1 Worker** | Decoupled worker process | ~91.4% | Queue backpressure as worker saturated |
+| **3 — 3 Workers + Rate Limiter** | Horizontally scaled | ~9.7% | Rate limiter correctly rejected burst traffic |
+| **3 — 3 Workers (no limiter)** | Horizontally scaled | ~100% | Architecture scaled cleanly on this host |
 
-The Phase 3 regression — where adding more workers made things worse — is the most interesting result. The API and worker run in separate containers, but all containers on the same host share the same physical CPU cores. Three CPU-saturating workers competing for the same cores meant each got less time than before, and parallel DB writes exceeded the connection pool capacity on top of that. It demonstrates infrastructure saturation rather than an application-level failure.
+The most important finding: with the rate limiter removed, 3 workers handled 100 req/sec with zero failures and a mean latency of 46ms. The ~9.7% in the rate-limited run was the rate limiter doing exactly what it was designed to do — not an infrastructure failure.
 
 Full analysis: [docs/performance-baseline.md](docs/performance-baseline.md)
