@@ -16,6 +16,13 @@ export const getAllJobs = async () => {
   return prisma.job.findMany({ include: { user: true } });
 };
 
+export const getJobById = async (jobId: string) => {
+  return prisma.job.findUnique({
+    where: { id: jobId },
+    include: { user: true },
+  });
+};
+
 export const updateJobStatus = async (
   jobId: string,
   status: JobStatus,

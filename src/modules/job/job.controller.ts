@@ -1,5 +1,10 @@
 import { Request, Response } from "express";
-import { createJob, getAllJobs, updateJobStatus } from "./job.service";
+import {
+  createJob,
+  getAllJobs,
+  getJobById,
+  updateJobStatus,
+} from "./job.service";
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { jobQueue } from "./job.queue";
 import { z } from "zod";
@@ -63,6 +68,27 @@ export const getJobHandler = async (req: Request, res: Response) => {
     return res.status(500).json({
       message: "server error (error getting jobs)",
     });
+  }
+};
+
+export const getJobByIdHandler = async (
+  req: Request<{ jobId: string }>,
+  res: Response,
+) => {
+  try {
+    const { jobId } = req.params;
+    const job = await getJobById(jobId);
+
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+    return res.status(200).json({ job });
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to fetch job");
+    return res
+      .status(500)
+      .json({ message: "server error (error getting job)" });
   }
 };
 
