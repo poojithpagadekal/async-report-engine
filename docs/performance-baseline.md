@@ -83,7 +83,7 @@ Zero failures. Zero timeouts. Zero errors in the API logs. The architecture hand
 
 | Phase | Bottleneck | Type |
 | :--- | :--- | :--- |
-| Sync | Event loop blocked | Design flaw — solved ✓ |
+| Sync | Event loop blocked | Design flaw |
 | 1 Worker | Queue backpressure | Compute limit — addressable with more workers |
 | 3 Workers + Limiter | Rate limiter rejecting burst | Intentional — working as designed |
 | 3 Workers, no limiter | None on this host | Architecture scales cleanly |
