@@ -6,7 +6,20 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
 
+A distributed job processing system demonstrating how to offload CPU-bound work from the Node.js event loop using Redis queues and worker processes.
+
 A backend project exploring how to handle CPU-intensive tasks without blocking the Node.js event loop, using a distributed job queue architecture.
+
+---
+
+## Live Demo
+
+| Service | URL |
+| :--- | :--- |
+| API | https://async-report-engine.onrender.com |
+| Queue Dashboard (BullBoard) | https://async-report-engine.onrender.com/admin/queues |
+
+> Free tier — first request may take 30–50 seconds to wake up after inactivity.
 
 ---
 
@@ -110,6 +123,13 @@ All routes are prefixed with `/api`.
 
 ## Getting Started
 
+### Option 1 — Live deployment
+The API and BullBoard dashboard are live at the URLs above. No setup needed.
+
+Use the workflow below substituting `http://localhost:5000` with `https://async-report-engine.onrender.com`.
+
+### Option 2 — Run locally
+
 **Prerequisites**: Docker and Docker Compose.
 
 ```bash
@@ -170,7 +190,7 @@ Tested with Artillery at ~100 req/sec using 100M math iterations per job on a si
 | :--- | :--- | :--- | :--- |
 | **1 — Sync** | Blocking, single-threaded | ~1.1% | Event loop blocked by CPU work |
 | **2 — 1 Worker** | Decoupled worker process | ~91.4% | Queue backpressure as worker saturated |
-| **3 — 3 Workers + Rate Limiter** | Horizontally scaled | ~9.7% | Rate limiter correctly rejected burst traffic |
+| **3 — 3 Workers + Rate Limiter** | Horizontally scaled | ~9.7% accepted | Rate limiter intentionally rejected excess traffic — not an infrastructure failure |
 | **3 — 3 Workers (no limiter)** | Horizontally scaled | ~100% | Architecture scaled cleanly on this host |
 
 The most important finding: with the rate limiter removed, 3 workers handled 100 req/sec with zero failures and a mean latency of 46ms. The ~9.7% in the rate-limited run was the rate limiter doing exactly what it was designed to do — not an infrastructure failure.
