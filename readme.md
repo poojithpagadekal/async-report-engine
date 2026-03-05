@@ -8,8 +8,6 @@
 
 A distributed job processing system demonstrating how to offload CPU-bound work from the Node.js event loop using Redis queues and worker processes.
 
-A backend project exploring how to handle CPU-intensive tasks without blocking the Node.js event loop, using a distributed job queue architecture.
-
 ---
 
 ## Live Demo
@@ -17,6 +15,7 @@ A backend project exploring how to handle CPU-intensive tasks without blocking t
 | Service | URL |
 | :--- | :--- |
 | API | https://async-report-engine.onrender.com |
+| API Documentation (Swagger) | https://async-report-engine.onrender.com/docs |
 | Queue Dashboard (BullBoard) | https://async-report-engine.onrender.com/admin/queues |
 
 > Free tier — first request may take 30–50 seconds to wake up after inactivity.
