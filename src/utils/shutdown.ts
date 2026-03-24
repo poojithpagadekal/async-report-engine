@@ -46,8 +46,7 @@ export const setupGracefulShutdown = (
       clearTimeout(forceExit);
 
       logger.info("Shutdown complete. Exiting process");
-      logger.flush();
-      process.exit(0);
+      logger.flush(() => process.exit(0));
     } catch (error) {
       logger.error({ error }, "Error during graceful shutdown");
       process.exit(1);
