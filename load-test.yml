@@ -14,4 +14,4 @@ scenarios:
   - name: "Generate Report Sync"
     flow:
       - post:
-          url: "/api/generate-report"
+          url: "/api/jobs"

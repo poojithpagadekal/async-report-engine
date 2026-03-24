@@ -1,8 +1,15 @@
 config:
   target: "http://localhost:5000"
+
   phases:
-    - duration: 60
+    - name: "Light Load"
+      duration: 60
+      arrivalRate: 2
+
+    - name: "Heavy Load"
+      duration: 60
       arrivalRate: 50
+
 scenarios:
   - name: "Submit Jobs and Check List"
     flow:
