@@ -14,7 +14,6 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/reports_db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-    command: ["node", "dist/server.js"]
     stop_grace_period: 30s
 
   worker:
