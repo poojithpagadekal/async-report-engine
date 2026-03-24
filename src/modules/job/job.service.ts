@@ -62,7 +62,9 @@ export const updateJobStatus = async (
       updateData.progress = 0;
       break;
     case JobStatus.PROCESSING:
-      updateData.startedAt = new Date();
+      if (progress === undefined) {
+        updateData.startedAt = new Date();
+      }
       break;
     case JobStatus.COMPLETED:
       updateData.completedAt = new Date();

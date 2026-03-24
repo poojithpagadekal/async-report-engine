@@ -23,7 +23,11 @@ worker.on("active", async (job) => {
 
 worker.on("progress", async (job, progress) => {
   try {
-    await updateJobStatus(job.data.jobId, "PROCESSING", progress as number);
+    await updateJobStatus(
+      job.data.jobId,
+      JobStatus.PROCESSING,
+      progress as number,
+    );
   } catch (err) {
     logger.error({ err }, "Failed to sync job progress");
   }
@@ -45,7 +49,7 @@ worker.on("failed", async (job, err) => {
 
     if (attemptsMade < maxAttempts) {
       logger.warn(
-        `Job ${job?.id} failed.Attempt ${attemptsMade}/${maxAttempts}. Retrying...`,
+        `Job ${job?.id} failed. Attempt ${attemptsMade}/${maxAttempts}. Retrying...`,
       );
     } else {
       logger.error(`Job ${job?.id} exhausted all retries`);
