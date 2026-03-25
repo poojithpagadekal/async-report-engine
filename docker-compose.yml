@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   app:
     build: .
@@ -26,6 +24,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     command: node dist/workers/worker-server.js
+    stop_grace_period: 35s
     deploy:
       replicas: ${WORKER_REPLICAS:-1}
 
