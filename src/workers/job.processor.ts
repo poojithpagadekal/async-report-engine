@@ -1,4 +1,3 @@
-import { updateJobStatus } from "../modules/job/job.service";
 import { Job } from "bullmq";
 import { logger } from "../utils/logger";
 
@@ -10,7 +9,7 @@ function performHeavyComputation(iterations: number) {
   return result;
 }
 
-export default async function (job: Job) {
+export default async function jobProcessor(job: Job) {
   const { jobId } = job.data;
   const startTimestamp = Date.now();
 
