@@ -11,7 +11,6 @@ const userRouter = express.Router();
  *   post:
  *     summary: Create a new user
  *     tags: [Users]
- *     security: []
  *     description: |
  *       Creates a new user. Copy the `id` from the response — you will need it
  *       as the `userId` when submitting a job.
@@ -46,7 +45,6 @@ userRouter.post("/", validate(CreateUserSchema), createUserHandler);
  *   get:
  *     summary: List all users with their jobs
  *     tags: [Users]
- *     security: []
  *     responses:
  *       200:
  *         description: List of users

@@ -28,7 +28,6 @@ const options = {
         },
       },
     },
-    security: [{ ApiKeyAuth: [] }],
   },
   apis: ["./src/modules/**/*.route.ts", "./dist/modules/**/*.route.js"],
 };
