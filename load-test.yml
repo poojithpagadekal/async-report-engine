@@ -2,16 +2,21 @@ config:
   target: "http://localhost:5000"
 
   phases:
-    - name: "Light Load"
-      duration: 60
+    - name: "Warm up"
+      duration: 10
       arrivalRate: 2
 
     - name: "Heavy Load"
       duration: 60
       arrivalRate: 50
+      maxVusers: 100
 
 scenarios:
   - name: "Generate Report Sync"
     flow:
       - post:
           url: "/api/generate-report"
+          headers:
+            Content-Type: "application/json"
+          expect:
+            - statusCode: 201
