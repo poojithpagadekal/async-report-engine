@@ -11,6 +11,9 @@ const userRouter = express.Router();
  *   post:
  *     summary: Create a new user
  *     tags: [Users]
+ *     description: |
+ *       Creates a new user. Copy the `id` from the response — you will need it
+ *       as the `userId` when submitting a job.
  *     requestBody:
  *       required: true
  *       content:
@@ -22,13 +25,13 @@ const userRouter = express.Router();
  *             properties:
  *               email:
  *                 type: string
- *                 example: user@example.com
+ *                 example: test@example.com
  *               name:
  *                 type: string
- *                 example: John
+ *                 example: Test User
  *     responses:
  *       201:
- *         description: User created successfully
+ *         description: User created successfully — copy the `id` for use in POST /api/jobs
  *       409:
  *         description: Email already exists
  *       500:

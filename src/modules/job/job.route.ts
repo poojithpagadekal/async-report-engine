@@ -6,7 +6,12 @@ import {
   updateJobHandler,
 } from "./job.controller";
 import { validate } from "../../middleware/validate";
-import { CreateJobSchema, GetAllJobsSchema, GetJobByIdSchema, UpdateJobSchema } from "./job.schema";
+import {
+  CreateJobSchema,
+  GetAllJobsSchema,
+  GetJobByIdSchema,
+  UpdateJobSchema,
+} from "./job.schema";
 import { reportLimiter } from "../../middleware/limiter";
 
 const jobRouter = express.Router();
@@ -17,7 +22,11 @@ const jobRouter = express.Router();
  *   post:
  *     summary: Submit a new job
  *     tags: [Jobs]
- *     description: Rate limited to 50 requests per minute.
+ *     description: |
+ *       Submits a job to the processing queue. Rate limited to 50 requests per minute.
+ *
+ *       **Before using this endpoint**, create a user via `POST /api/users` and copy
+ *       the `id` from the response to use as `userId` here.
  *     requestBody:
  *       required: true
  *       content:
@@ -31,7 +40,9 @@ const jobRouter = express.Router();
  *             properties:
  *               userId:
  *                 type: string
- *                 example: 94c027b2-a44d-4962-9946-7de970e1a9b2
+ *                 format: uuid
+ *                 description: The `id` returned from POST /api/users
+ *                 example: paste-your-user-id-here
  *               title:
  *                 type: string
  *                 example: Q4 Sales Report
@@ -42,8 +53,10 @@ const jobRouter = express.Router();
  *     responses:
  *       201:
  *         description: Job created and queued successfully
+ *       400:
+ *         description: Invalid userId — create a user first via POST /api/users
  *       429:
- *         description: Rate limit exceeded
+ *         description: Rate limit exceeded — max 50 requests per minute
  *       500:
  *         description: Server error
  */
@@ -86,7 +99,8 @@ jobRouter.get("/", validate(GetAllJobsSchema), getJobHandler);
  *         required: true
  *         schema:
  *           type: string
- *         example: 94c027b2-a44d-4962-9946-7de970e1a9b2
+ *           format: uuid
+ *         description: The job `id` returned from POST /api/jobs
  *     responses:
  *       200:
  *         description: Job details
@@ -97,39 +111,6 @@ jobRouter.get("/", validate(GetAllJobsSchema), getJobHandler);
  */
 jobRouter.get("/:jobId", validate(GetJobByIdSchema), getJobByIdHandler);
 
-/**
- * @swagger
- * /api/jobs/{jobId}:
- *   patch:
- *     summary: Update job status and progress
- *     tags: [Jobs]
- *     parameters:
- *       - in: path
- *         name: jobId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               status:
- *                 type: string
- *                 enum: [PENDING, PROCESSING, COMPLETED, FAILED]
- *               progress:
- *                 type: integer
- *                 example: 80
- *     responses:
- *       200:
- *         description: Job updated successfully
- *       404:
- *         description: Job not found
- *       500:
- *         description: Server error
- */
 jobRouter.patch("/:jobId", validate(UpdateJobSchema), updateJobHandler);
 
 export default jobRouter;
