@@ -19,6 +19,16 @@ const options = {
         description: "Local",
       },
     ],
+    components: {
+      securitySchemes: {
+        ApiKeyAuth: {
+          type: "apiKey",
+          in: "header",
+          name: "x-api-key",
+        },
+      },
+    },
+    security: [{ ApiKeyAuth: [] }],
   },
   apis: ["./src/modules/**/*.route.ts", "./dist/modules/**/*.route.js"],
 };

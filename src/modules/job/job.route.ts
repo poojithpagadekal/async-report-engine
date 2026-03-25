@@ -23,6 +23,8 @@ const jobRouter = express.Router();
  *   post:
  *     summary: Submit a new job
  *     tags: [Jobs]
+ *     security:
+ *       - ApiKeyAuth: []
  *     description: |
  *       Submits a job to the processing queue. Rate limited to 50 requests per minute.
  *
@@ -56,12 +58,20 @@ const jobRouter = express.Router();
  *         description: Job created and queued successfully
  *       400:
  *         description: Invalid userId — create a user first via POST /api/users
+ *       401:
+ *         description: Missing or invalid API key
  *       429:
  *         description: Rate limit exceeded — max 50 requests per minute
  *       500:
  *         description: Server error
  */
-jobRouter.post("/", requireApiKey, reportLimiter, validate(CreateJobSchema), createJobHandler);
+jobRouter.post(
+  "/",
+  requireApiKey,
+  reportLimiter,
+  validate(CreateJobSchema),
+  createJobHandler,
+);
 
 /**
  * @swagger
@@ -69,6 +79,7 @@ jobRouter.post("/", requireApiKey, reportLimiter, validate(CreateJobSchema), cre
  *   get:
  *     summary: List all jobs (paginated)
  *     tags: [Jobs]
+ *     security: []
  *     parameters:
  *       - in: query
  *         name: page
@@ -94,6 +105,7 @@ jobRouter.get("/", validate(GetAllJobsSchema), getJobHandler);
  *   get:
  *     summary: Get a single job by ID
  *     tags: [Jobs]
+ *     security: []
  *     parameters:
  *       - in: path
  *         name: jobId
@@ -112,6 +124,11 @@ jobRouter.get("/", validate(GetAllJobsSchema), getJobHandler);
  */
 jobRouter.get("/:jobId", validate(GetJobByIdSchema), getJobByIdHandler);
 
-jobRouter.patch("/:jobId", requireWorkerSecret, validate(UpdateJobSchema), updateJobHandler);
+jobRouter.patch(
+  "/:jobId",
+  requireWorkerSecret,
+  validate(UpdateJobSchema),
+  updateJobHandler,
+);
 
 export default jobRouter;
