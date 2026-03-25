@@ -12,6 +12,8 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/reports_db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - API_KEY=${API_KEY}
+      - WORKER_SECRET=${WORKER_SECRET}
     stop_grace_period: 30s
 
   worker:
@@ -23,6 +25,7 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/reports_db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - WORKER_SECRET=${WORKER_SECRET}
     command: node dist/workers/worker-server.js
     stop_grace_period: 35s
     deploy:

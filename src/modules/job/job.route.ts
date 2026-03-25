@@ -13,6 +13,7 @@ import {
   UpdateJobSchema,
 } from "./job.schema";
 import { reportLimiter } from "../../middleware/limiter";
+import { requireApiKey, requireWorkerSecret } from "../../middleware/auth";
 
 const jobRouter = express.Router();
 
@@ -60,7 +61,7 @@ const jobRouter = express.Router();
  *       500:
  *         description: Server error
  */
-jobRouter.post("/", reportLimiter, validate(CreateJobSchema), createJobHandler);
+jobRouter.post("/", requireApiKey, reportLimiter, validate(CreateJobSchema), createJobHandler);
 
 /**
  * @swagger
@@ -111,6 +112,6 @@ jobRouter.get("/", validate(GetAllJobsSchema), getJobHandler);
  */
 jobRouter.get("/:jobId", validate(GetJobByIdSchema), getJobByIdHandler);
 
-jobRouter.patch("/:jobId", validate(UpdateJobSchema), updateJobHandler);
+jobRouter.patch("/:jobId", requireWorkerSecret, validate(UpdateJobSchema), updateJobHandler);
 
 export default jobRouter;
