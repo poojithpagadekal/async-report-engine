@@ -18,8 +18,10 @@ export const setupGracefulShutdown = (
 
     const forceExit = setTimeout(() => {
       logger.error("Force exiting after timeout");
+      logger.flush();
       process.exit(1);
     }, 30000);
+    forceExit.unref();
 
     try {
       if (server) {
@@ -46,9 +48,13 @@ export const setupGracefulShutdown = (
       clearTimeout(forceExit);
 
       logger.info("Shutdown complete. Exiting process");
-      logger.flush(() => process.exit(0));
+      logger.flush();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      process.exit(0);
     } catch (error) {
       logger.error({ error }, "Error during graceful shutdown");
+      logger.flush();
+      await new Promise((resolve) => setTimeout(resolve, 300));
       process.exit(1);
     }
   };

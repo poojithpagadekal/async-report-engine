@@ -4,10 +4,9 @@ import path from "path";
 import { updateJobStatus } from "../modules/job/job.service";
 import { JobStatus } from "@prisma/client";
 import { logger } from "../utils/logger";
+import jobProcessor from "./job.processor";
 
-const processorPath = path.join(__dirname, "job.processor.js");
-
-export const worker = new Worker("jobQueue", processorPath, {
+export const worker = new Worker("jobQueue", jobProcessor, {
   connection: redisConnection,
   concurrency: 4,
 });
