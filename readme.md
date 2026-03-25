@@ -35,7 +35,7 @@ Tested with Artillery at ~100 req/sec using 100M math iterations per job on a si
 
 | Phase                            | Architecture              | Success Rate   | Finding                                                                                           |
 | :------------------------------- | :------------------------ | :------------- | :------------------------------------------------------------------------------------------------ |
-| **1 — Sync**                     | Blocking, single-threaded | ~1.1%          | Event loop blocked — nearly every request timed out                                               |
+| **1 — Sync**                     | Blocking, single-threaded | ~3.4%          | Event loop blocked — nearly every request timed out                                               |
 | **2 — 1 Worker**                 | Decoupled worker process  | ~91.4%         | Queue absorbed burst; single worker saturated under load                                          |
 | **3 — 3 Workers + Rate Limiter** | Horizontally scaled       | ~9.7% accepted | **Low rate is intentional** — rate limiter rejected excess traffic, not an infrastructure failure |
 | **3 — 3 Workers (no limiter)**   | Horizontally scaled       | ~100%          | Zero failures, 46ms mean latency — architecture scales cleanly                                    |
