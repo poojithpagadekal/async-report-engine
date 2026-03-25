@@ -63,5 +63,3 @@ worker.on("failed", async (job, err) => {
     logger.error({ error }, "Failed to mark job as FAILED");
   }
 });
-
-logger.info("Worker container running");
