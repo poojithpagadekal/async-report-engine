@@ -6,7 +6,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
 
-A distributed job processing system built around production patterns — offloading CPU-bound work from the Node.js event loop using Redis-backed queues, isolated worker containers, and horizontal scaling.
+A decoupled, queue-based job processing system built around production patterns — offloading CPU-bound work from the Node.js event loop using Redis-backed queues, isolated worker containers, and multi-worker concurrency.
 
 ---
 
@@ -14,7 +14,7 @@ A distributed job processing system built around production patterns — offload
 
 - CPU-bound work (report generation) offloaded from the API to isolated worker processes via BullMQ + Redis
 - API stays responsive under load — workers handle computation in separate containers
-- Tested at ~100 req/sec: synchronous handling caused ~99% timeouts; queue-based architecture handled the same load with zero failures
+- Tested at ~100 req/sec: synchronous handling caused ~97% timeouts; queue-based architecture handled the same load with zero failures
 - Includes retry with exponential backoff, rate limiting, graceful shutdown, structured logging, and a live queue dashboard
 
 ---
@@ -33,12 +33,12 @@ This pattern appears in real systems handling report generation, video encoding,
 
 Tested with Artillery at ~100 req/sec using 100M math iterations per job on a single host (16 cores, 24GB RAM, Docker on WSL 2).
 
-| Phase                            | Architecture              | Success Rate   | Finding                                                                                           |
-| :------------------------------- | :------------------------ | :------------- | :------------------------------------------------------------------------------------------------ |
-| **1 — Sync**                     | Blocking, single-threaded | ~3.4%          | Event loop blocked — nearly every request timed out                                               |
-| **2 — 1 Worker**                 | Decoupled worker process  | ~91.4%         | Queue absorbed burst; single worker saturated under load                                          |
-| **3 — 3 Workers + Rate Limiter** | Horizontally scaled       | ~9.7% accepted | **Low rate is intentional** — rate limiter rejected excess traffic, not an infrastructure failure |
-| **3 — 3 Workers (no limiter)**   | Horizontally scaled       | ~100%          | Zero failures, 46ms mean latency — architecture scales cleanly                                    |
+| Phase                            | Architecture                  | Success Rate   | Finding                                                                                           |
+| :------------------------------- | :---------------------------- | :------------- | :------------------------------------------------------------------------------------------------ |
+| **1 — Sync**                     | Blocking, single-threaded     | ~3.4%          | Event loop blocked — nearly every request timed out                                               |
+| **2 — 1 Worker**                 | Decoupled worker process      | ~91.4%         | Queue absorbed burst; single worker saturated under load                                          |
+| **3 — 3 Workers + Rate Limiter** | Multi-worker (3 replicas)     | ~9.7% accepted | **Low rate is intentional** — rate limiter rejected excess traffic, not an infrastructure failure |
+| **3 — 3 Workers (no limiter)**   | Multi-worker (3 replicas)     | ~100%          | Zero failures, 46ms mean latency — architecture scales cleanly                                    |
 
 The key finding: the same workload that caused 99% failure synchronously was handled with zero failures once offloaded to workers. The ~9.7% in the rate-limited run was the rate limiter working as designed — not a system failure.
 
@@ -75,12 +75,12 @@ The API and worker run as **separate containers** — compute pressure on the wo
 ## Tech Stack
 
 | Layer            | Technology                   |
-| :--------------- | :--------------------------- |
+| :--------------- | :---------------------------- |
 | API Framework    | Node.js, Express, TypeScript |
 | Queue / Broker   | BullMQ, Redis 7              |
 | Database / ORM   | PostgreSQL 15, Prisma        |
 | Validation       | Zod                          |
-| Auth             | API key middleware           |
+| Auth             | API key middleware            |
 | Rate Limiting    | express-rate-limit           |
 | Logging          | Pino                         |
 | Observability    | BullBoard                    |
@@ -146,7 +146,7 @@ Copy the `id` from the response — you need it in the next step.
 
 ```json
 {
-  "userId": "<paste-id-here>",
+  "userId": "",
   "title": "Q4 Sales Report",
   "type": "PDF_EXPORT"
 }
@@ -167,11 +167,11 @@ curl -X POST http://localhost:5000/api/users \
   -H "x-api-key: your-api-key" \
   -d '{"email": "test@example.com", "name": "Test User"}'
 
-# 2. Submit a job — replace <userId> with the id from step 1
+# 2. Submit a job — replace  with the id from step 1
 curl -X POST http://localhost:5000/api/jobs \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key" \
-  -d '{"userId": "<userId>", "title": "Q4 Sales Report", "type": "PDF_EXPORT"}'
+  -d '{"userId": "", "title": "Q4 Sales Report", "type": "PDF_EXPORT"}'
 
 # 3. Poll for status
 curl "http://localhost:5000/api/jobs?page=1&limit=10"
