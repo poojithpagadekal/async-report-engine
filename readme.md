@@ -12,7 +12,7 @@ A decoupled, queue-based job processing system built around production patterns 
 
 ## At a Glance
 
-- CPU-bound work (report generation) offloaded from the API to isolated worker processes via BullMQ + Redis
+- CPU-bound work offloaded from the API to isolated worker processes via BullMQ + Redis
 - API stays responsive under load — workers handle computation in separate containers
 - Tested at ~100 req/sec: synchronous handling caused ~97% timeouts; queue-based architecture handled the same load with zero failures
 - Includes retry with exponential backoff, rate limiting, graceful shutdown, structured logging, and a live queue dashboard
@@ -146,7 +146,7 @@ Copy the `id` from the response — you need it in the next step.
 
 ```json
 {
-  "userId": "",
+  "userId": "<paste-id-here>",
   "title": "Q4 Sales Report",
   "type": "PDF_EXPORT"
 }
@@ -171,7 +171,7 @@ curl -X POST http://localhost:5000/api/users \
 curl -X POST http://localhost:5000/api/jobs \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key" \
-  -d '{"userId": "", "title": "Q4 Sales Report", "type": "PDF_EXPORT"}'
+  -d '{"userId": "<paste-id-here>", "title": "Q4 Sales Report", "type": "PDF_EXPORT"}'
 
 # 3. Poll for status
 curl "http://localhost:5000/api/jobs?page=1&limit=10"
